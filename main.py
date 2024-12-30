@@ -3,6 +3,10 @@
 # future changes will email or message the screenshot and include other things to check such as grades
 from driver import SchoologyDriver
 import os
+import json
+import datetime
+import difflib
+from pathlib import Path
 
 # Set the download path, URL, and credentials
 download_path = '.'
@@ -16,36 +20,48 @@ sch_driver = SchoologyDriver(download_path)
 # Login
 sch_driver.login(url, email, password)
 
+# After login, navigate to grades page
+print("\nNavigating to grades page...")
+sch_driver.driver.get('https://lvjusd.schoology.com/grades/grades')
 
-def read_previous_html(file_path):
-    if os.path.exists(file_path):
-        with open(file_path, 'r', encoding='utf-8') as file:
-            return file.read()
-    return None
+# Wait for the page to load
+import time
+time.sleep(5)  # Give extra time for the page to fully load
 
+# Get all courses and expand their grade sections
+print("\nExpanding grade sections...")
+courses = sch_driver.get_all_courses_grades()
+time.sleep(2)  # Wait for expansions to complete
+    
+print("\nExtracting grade data...")
+courses_data = []
+for course in courses:
+    try:
+        course_data = sch_driver.get_course_structure(course)
+        if course_data["title"] != "Unknown Course":  # Skip any malformed courses
+            courses_data.append(course_data)
+            print(f"\nProcessed course: {course_data['title']}")
+            # Print some debug info about what we found
+            for period in course_data.get("periods", []):
+                print(f"  Period: {period['name']}")
+                for category in period.get("categories", []):
+                    print(f"    Category: {category['name']} ({category['weight']})")
+                    print(f"    Found {len(category.get('assignments', []))} assignments")
+    except Exception as e:
+        print(f"Error processing course: {str(e)}")
+        continue
 
-def write_html(file_path, html_content):
-    with open(file_path, 'w', encoding='utf-8') as file:
-        file.write(html_content)
-
-
-previous_all_html_filename = 'previous_all_html.txt'
-previous_all_html = read_previous_html(previous_all_html_filename)
-
-
-# Get inner HTML for completed and to-do
-current_completed_inner_html = sch_driver.get_inner_html("recently-completed-list")
-current_todo_inner_html = sch_driver.get_inner_html("todo-wrapper")
-
-# Concatenate them into a single string
-all_html = current_todo_inner_html + current_completed_inner_html
-
-if all_html != previous_all_html:
-    print("Looks like there are some changes")
-    sch_driver.take_screenshot('screenshot.png')
-    write_html(previous_all_html_filename, all_html)
-else:
-    print("No changes to previous")
-
-# Close the driver
+def save_grade_snapshot(courses_data):
+    """Save the current grades to a JSON file"""
+    filename = "grades_dump.json"
+    
+    with open(filename, 'w') as f:
+        json.dump(courses_data, f, indent=2, default=str)
+    
+    return filename
+        
+# Save new snapshot
+print("\nSaving data to JSON...")
+save_grade_snapshot(courses_data)
+        
 sch_driver.close()
