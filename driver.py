@@ -5,6 +5,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 import time
 import os
+from bs4 import BeautifulSoup
 
 
 class SchoologyDriver:
@@ -44,176 +45,65 @@ class SchoologyDriver:
 
     def close(self):
         self.driver.quit()    
-    # Add this method to your SchoologyDriver class in driver.py
-    def get_all_courses_grades(self):
+    def test_math_expansion(self):
         """
-        Get all courses and their grade information
+        Test method to verify we can expand the math course and find a specific assignment
         """
-        # Wait for the gradebook to load
-        time.sleep(5)  # Adjust if needed
-        
-        # Find all course divs
-        courses = self.driver.find_elements(By.CLASS_NAME, "gradebook-course")
-        
-        for course in courses:
-            # Get course title
-            title = course.find_element(By.CLASS_NAME, "gradebook-course-title").text
-            print(f"\nFound course: {title}")
-            
-            # Click the course title to expand if not expanded
-            try:
-                expand_button = course.find_element(By.CLASS_NAME, "arrow")
-                expand_button.click()
-                time.sleep(1)  # Wait for expansion
-                
-                # Now find and click all period row expand buttons
-                period_rows = course.find_elements(By.CLASS_NAME, "period-row")
-                for period in period_rows:
-                    try:
-                        period_expand = period.find_element(By.CLASS_NAME, "expandable-icon-grading-report")
-                        period_expand.click()
-                        time.sleep(0.5)  # Wait for period expansion
-                        
-                        # Now find and click all category row expand buttons
-                        category_rows = period.find_elements(By.CLASS_NAME, "category-row")
-                        for category in category_rows:
-                            try:
-                                category_expand = category.find_element(By.CLASS_NAME, "expandable-icon-grading-report")
-                                category_expand.click()
-                                time.sleep(0.5)  # Wait for category expansion
-                            except:
-                                continue
-                    except:
-                        continue
-            except:
-                print(f"Could not expand course: {title}")
-
-        # Give a moment for all expansions to complete
-        time.sleep(2)
-
-        # Now return all courses for processing
-        return self.driver.find_elements(By.CLASS_NAME, "gradebook-course")
-    # In driver.py
-    def parse_assignment_grade(self, grade_element):
-        """Parse grade data from a grade column element"""
         try:
-            # Handle exception cases (Missing, Incomplete)
-            exception = grade_element.find_elements(By.CLASS_NAME, "exception-text")
-            if exception:
-                max_grade = grade_element.find_element(By.CLASS_NAME, "max-grade").text.strip(" /") if grade_element.find_elements(By.CLASS_NAME, "max-grade") else None
-                return {
-                    "score": "0",
-                    "max": max_grade,
-                    "status": exception[0].text
-                }
+            # Navigate to grades
+            self.driver.get('https://lvjusd.schoology.com/grades/grades')
+            time.sleep(5)  # Wait for grades page to load
+
+            # Find and expand math course
+            math_title = self.wait.until(ec.presence_of_element_located(
+                (By.XPATH, "//div[contains(@class, 'gradebook-course-title')]//a[contains(text(), 'Accelerated Math')]")))
             
-            # Handle normal graded assignments
-            awarded_grade = grade_element.find_element(By.CLASS_NAME, "awarded-grade")
-            if awarded_grade:
-                # Try to get the numeric grade first
-                try:
-                    grade_value = awarded_grade.find_element(By.CLASS_NAME, "rounded-grade").text
-                except:
-                    # If no rounded-grade, use the full awarded-grade text
-                    grade_value = awarded_grade.text
-                    
-            max_grade = grade_element.find_element(By.CLASS_NAME, "max-grade").text.strip(" /") if grade_element.find_elements(By.CLASS_NAME, "max-grade") else None
+            # Scroll the math title into view
+            self.driver.execute_script("arguments[0].scrollIntoView(true);", math_title)
+            time.sleep(1)  # Wait for scroll
             
-            return {
-                "score": grade_value,
-                "max": max_grade,
-                "status": "Graded"
-            }
+            # Click the arrow using JavaScript
+            arrow = math_title.find_element(By.CLASS_NAME, "arrow")
+            self.driver.execute_script("arguments[0].click();", arrow)
+            time.sleep(2)
+
+            # Find T1 element and ensure it's visible
+            t1_element = self.wait.until(ec.presence_of_element_located(
+                (By.XPATH, "//span[contains(@class, 'title') and contains(text(), '2024-2025 T1')]/parent::div")))
+            self.driver.execute_script("arguments[0].scrollIntoView(true);", t1_element)
+            time.sleep(1)
+            
+            # Find and click the expand icon using JavaScript
+            expand_icon = t1_element.find_element(By.CLASS_NAME, "expandable-icon-grading-report")
+            self.driver.execute_script("arguments[0].click();", expand_icon)
+            time.sleep(2)
+
+            # Find Classwork section and ensure it's visible
+            classwork_element = self.wait.until(ec.presence_of_element_located(
+                (By.XPATH, "//span[contains(@class, 'title') and text()='Classwork']/parent::div")))
+            self.driver.execute_script("arguments[0].scrollIntoView(true);", classwork_element)
+            time.sleep(1)
+            
+            # Click the classwork expand icon using JavaScript
+            classwork_expand = classwork_element.find_element(By.CLASS_NAME, "expandable-icon-grading-report")
+            self.driver.execute_script("arguments[0].click();", classwork_expand)
+            time.sleep(2)
+
+            # Look for our test assignment
+            test_assignment = self.wait.until(ec.presence_of_element_located(
+                (By.XPATH, "//a[contains(text(), '1.3 order of operation')]")))
+            
+            print("Found test assignment! Expansion successful!")
+            
+            # Get its grade using a more precise XPath
+            assignment_row = test_assignment.find_element(By.XPATH, "./ancestor::tr[contains(@class, 'report-row item-row')]")
+            grade_cell = assignment_row.find_element(By.CLASS_NAME, "grade-column")
+            grade = grade_cell.find_element(By.CLASS_NAME, "rounded-grade").text
+            max_grade = grade_cell.find_element(By.CLASS_NAME, "max-grade").text
+            
+            print(f"Grade: {grade}{max_grade}")
+            return True
+
         except Exception as e:
-            print(f"Warning: Error parsing grade: {str(e)}")
-            return {
-                "score": None,
-                "max": None,
-                "status": "Error parsing grade"
-            }
-    def get_course_structure(self, course_element):
-        """Get structured data for a course including all grades"""
-        try:
-            title = course_element.find_element(By.CLASS_NAME, "gradebook-course-title").text.strip()
-        except:
-            title = "Unknown Course"
-                
-        # Try to get overall grade in multiple ways since the structure varies
-        try:
-            grade_value = course_element.find_element(By.CLASS_NAME, "course-grade-value")
-            overall_grade = grade_value.text.strip()
-        except:
-            try:
-                # Try alternate location or format
-                grade_wrapper = course_element.find_element(By.CLASS_NAME, "course-grade-wrapper")
-                overall_grade = grade_wrapper.text.replace("Course Grade:", "").strip()
-            except:
-                overall_grade = "Not Available"
-
-        course_data = {
-            "title": title,
-            "overall_grade": overall_grade,
-            "periods": []
-        }
-        
-        try:
-            # Get grading periods
-            periods = course_element.find_elements(By.CLASS_NAME, "period-row")
-            for period in periods:
-                try:
-                    period_title = period.find_element(By.CLASS_NAME, "title").text.strip()
-                    # Skip the "(no grading period)" sections
-                    if "(no grading period)" in period_title:
-                        continue
-                    
-                    period_data = {
-                        "name": period_title,
-                        "categories": []
-                    }
-                    
-                    # Get categories within period
-                    categories = period.find_elements(By.CLASS_NAME, "category-row")
-                    for category in categories:
-                        # In get_course_structure method, inside the category loop:
-                        try:
-                            category_title = category.find_element(By.CLASS_NAME, "title").text.strip()
-                            print(f"    Found category: {category_title}")  # Add this debug line
-                            try:
-                                weight = category.find_element(By.CLASS_NAME, "percentage-contrib").text.strip()
-                            except:
-                                weight = "Weight not specified"
-                                
-                            category_data = {
-                                "name": category_title,
-                                "weight": weight,
-                                "assignments": []
-                            }
-                            
-                            # Get assignments within category
-                            assignments = category.find_elements(By.CLASS_NAME, "item-row")
-                            for assignment in assignments:
-                                try:
-                                    assignment_data = {
-                                        "name": assignment.find_element(By.CLASS_NAME, "title").text.strip(),
-                                        "due_date": assignment.find_element(By.CLASS_NAME, "due-date").text.strip() if assignment.find_elements(By.CLASS_NAME, "due-date") else None,
-                                        "grade": self.parse_assignment_grade(assignment.find_element(By.CLASS_NAME, "grade-column"))
-                                    }
-                                    category_data["assignments"].append(assignment_data)
-                                except Exception as e:
-                                    print(f"Warning: Could not parse assignment in {title}: {str(e)}")
-                                    continue
-                                    
-                            period_data["categories"].append(category_data)
-                        except Exception as e:
-                            print(f"Warning: Could not parse category in {title}: {str(e)}")
-                            continue
-                            
-                    course_data["periods"].append(period_data)
-                except Exception as e:
-                    print(f"Warning: Could not parse period in {title}: {str(e)}")
-                    continue
-                    
-        except Exception as e:
-            print(f"Warning: Could not parse periods in {title}: {str(e)}")
-            
-        return course_data
+            print(f"Error in test_math_expansion: {str(e)}")
+            return False

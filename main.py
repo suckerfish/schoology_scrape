@@ -21,47 +21,13 @@ sch_driver = SchoologyDriver(download_path)
 sch_driver.login(url, email, password)
 
 # After login, navigate to grades page
-print("\nNavigating to grades page...")
-sch_driver.driver.get('https://lvjusd.schoology.com/grades/grades')
+# Test the math course expansion
+print("\nTesting math course expansion...")
+success = sch_driver.test_math_expansion()
 
-# Wait for the page to load
-import time
-time.sleep(5)  # Give extra time for the page to fully load
+if success:
+    print("Successfully expanded math course and found test assignment!")
+else:
+    print("Failed to expand math course properly")
 
-# Get all courses and expand their grade sections
-print("\nExpanding grade sections...")
-courses = sch_driver.get_all_courses_grades()
-time.sleep(2)  # Wait for expansions to complete
-    
-print("\nExtracting grade data...")
-courses_data = []
-for course in courses:
-    try:
-        course_data = sch_driver.get_course_structure(course)
-        if course_data["title"] != "Unknown Course":  # Skip any malformed courses
-            courses_data.append(course_data)
-            print(f"\nProcessed course: {course_data['title']}")
-            # Print some debug info about what we found
-            for period in course_data.get("periods", []):
-                print(f"  Period: {period['name']}")
-                for category in period.get("categories", []):
-                    print(f"    Category: {category['name']} ({category['weight']})")
-                    print(f"    Found {len(category.get('assignments', []))} assignments")
-    except Exception as e:
-        print(f"Error processing course: {str(e)}")
-        continue
-
-def save_grade_snapshot(courses_data):
-    """Save the current grades to a JSON file"""
-    filename = "grades_dump.json"
-    
-    with open(filename, 'w') as f:
-        json.dump(courses_data, f, indent=2, default=str)
-    
-    return filename
-        
-# Save new snapshot
-print("\nSaving data to JSON...")
-save_grade_snapshot(courses_data)
-        
 sch_driver.close()
