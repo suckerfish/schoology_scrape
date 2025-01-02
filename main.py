@@ -1,11 +1,7 @@
-# This script scrapes schoology page for specific HTML by finding its class name/IDs and concatenates them.
-# If there is a change compared to the last time it was ran, it takes a screenshot and notes that there was a change
-# future changes will email or message the screenshot and include other things to check such as grades
 from driver import SchoologyDriver
 import os
 import json
 import datetime
-import difflib
 from pathlib import Path
 
 # Set the download path, URL, and credentials
@@ -26,10 +22,14 @@ print("\nGetting all courses data...")
 all_courses_data = sch_driver.get_all_courses_data()
 
 if all_courses_data:
-  with open('all_courses_data.json', 'w') as f:
-    json.dump(all_courses_data, f, indent=4)
+    # Save with current timestamp
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f'all_courses_data_{timestamp}.json'
+    
+    with open(filename, 'w') as f:
+        json.dump(all_courses_data, f, indent=2)
+    print(f"\nSaved data to {filename}")
 else:
-  print("Failed to get course data")
+    print("Failed to get course data")
 
 sch_driver.close()
-
