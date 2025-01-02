@@ -26,8 +26,6 @@ print("\nGetting all courses data...")
 all_courses_data = sch_driver.get_all_courses_data()
 
 if all_courses_data:
-  print("\nAll course data:")
-  print(json.dumps(all_courses_data, indent=4))
   with open('all_courses_data.json', 'w') as f:
     json.dump(all_courses_data, f, indent=4)
 else:
