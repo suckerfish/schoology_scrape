@@ -6,6 +6,7 @@ from selenium.webdriver.support import expected_conditions as ec
 import time
 import os
 from bs4 import BeautifulSoup
+from lxml import etree
 
 
 class SchoologyDriver:
@@ -44,66 +45,119 @@ class SchoologyDriver:
         self.driver.save_screenshot(file_name)
 
     def close(self):
-        self.driver.quit()    
-    def test_math_expansion(self):
+        self.driver.quit()
+        
+    def get_all_courses_data(self):
+      """
+        Gets data for ALL courses using dynamic class-based selectors with debug info
         """
-        Test method to verify we can expand the math course and find a specific assignment
-        """
-        try:
-            # Navigate to grades
-            self.driver.get('https://lvjusd.schoology.com/grades/grades')
-            time.sleep(5)  # Wait for grades page to load
+      try:
+          print("\nStarting all course data extraction...")
+          self.driver.get('https://lvjusd.schoology.com/grades/grades')
+          time.sleep(5)
+          html = self.driver.page_source
+          soup = BeautifulSoup(html, 'lxml')
+          tree = etree.HTML(str(soup))
 
-            # Find and expand math course
-            math_title = self.wait.until(ec.presence_of_element_located(
-                (By.XPATH, "//div[contains(@class, 'gradebook-course-title')]//a[contains(text(), 'Accelerated Math')]")))
-            
-            # Scroll the math title into view
-            self.driver.execute_script("arguments[0].scrollIntoView(true);", math_title)
-            time.sleep(1)  # Wait for scroll
-            
-            # Click the arrow using JavaScript
-            arrow = math_title.find_element(By.CLASS_NAME, "arrow")
-            self.driver.execute_script("arguments[0].click();", arrow)
-            time.sleep(2)
 
-            # Find T1 element and ensure it's visible
-            t1_element = self.wait.until(ec.presence_of_element_located(
-                (By.XPATH, "//span[contains(@class, 'title') and contains(text(), '2024-2025 T1')]/parent::div")))
-            self.driver.execute_script("arguments[0].scrollIntoView(true);", t1_element)
-            time.sleep(1)
-            
-            # Find and click the expand icon using JavaScript
-            expand_icon = t1_element.find_element(By.CLASS_NAME, "expandable-icon-grading-report")
-            self.driver.execute_script("arguments[0].click();", expand_icon)
-            time.sleep(2)
+          # 1. Find courses
+          print("Looking for courses...")
+          courses = tree.xpath("//div[contains(@class, 'gradebook-course')]")
+          print(f"Found {len(courses)} total courses")
 
-            # Find Classwork section and ensure it's visible
-            classwork_element = self.wait.until(ec.presence_of_element_located(
-                (By.XPATH, "//span[contains(@class, 'title') and text()='Classwork']/parent::div")))
-            self.driver.execute_script("arguments[0].scrollIntoView(true);", classwork_element)
-            time.sleep(1)
-            
-            # Click the classwork expand icon using JavaScript
-            classwork_expand = classwork_element.find_element(By.CLASS_NAME, "expandable-icon-grading-report")
-            self.driver.execute_script("arguments[0].click();", classwork_expand)
-            time.sleep(2)
+          all_course_data = []
+          for course in courses:
+                course_data = {"assignments": []}
 
-            # Look for our test assignment
-            test_assignment = self.wait.until(ec.presence_of_element_located(
-                (By.XPATH, "//a[contains(text(), '1.3 order of operation')]")))
-            
-            print("Found test assignment! Expansion successful!")
-            
-            # Get its grade using a more precise XPath
-            assignment_row = test_assignment.find_element(By.XPATH, "./ancestor::tr[contains(@class, 'report-row item-row')]")
-            grade_cell = assignment_row.find_element(By.CLASS_NAME, "grade-column")
-            grade = grade_cell.find_element(By.CLASS_NAME, "rounded-grade").text
-            max_grade = grade_cell.find_element(By.CLASS_NAME, "max-grade").text
-            
-            print(f"Grade: {grade}{max_grade}")
-            return True
+                # 2. Get course title and course grade
+                try:
+                  title_element = course.xpath(".//div[@class='gradebook-course-title']/a/span[1]/text()")[0]
+                  course_data["course_name"] = title_element
+                except:
+                  course_data["course_name"] = "could not find title"
 
-        except Exception as e:
-            print(f"Error in test_math_expansion: {str(e)}")
-            return False
+                try:
+                   course_grade = course.xpath(".//div[@class='summary-course']//span[contains(@class, 'grade-value')]//text()")[0]
+                   course_data["course_grade"] = course_grade
+                except:
+                  course_data["course_grade"] = "Not graded"
+
+                print(f"\nProcessing course: {course_data['course_name']}")
+
+
+                # 3. Get periods
+                periods = course.xpath(".//tr[contains(@class, 'period-row')]")
+                print(f"  Found {len(periods)} periods")
+
+                for period in periods:
+                     period_data = {"categories": []}
+                     try:
+                        title_elem = period.xpath(".//span[@class='title']/text()")[0]
+                        if "(no grading period)" in title_elem:
+                           continue
+                        period_data["period_name"] = title_elem
+                     except:
+                        period_data["period_name"] = "could not find period title"
+
+                     print(f"  Processing period: {period_data['period_name']}")
+
+
+                     # 4. Get categories
+                     categories = period.xpath("./following-sibling::tr[contains(@class, 'category-row') and @data-parent-id=$period_id]", period_id = period.get("data-id"))
+                     print(f"    Found {len(categories)} categories")
+
+                     for category in categories:
+                       category_data = {"assignments": []}
+
+                       try:
+                         category_title = category.xpath(".//span[@class='title']/text()")[0]
+                         try:
+                             weight = category.xpath(".//span[@class='percentage-contrib']/text()")[0]
+                             category_data["category_name"] = f"{category_title.strip()} {weight.strip()}"
+                         except:
+                             category_data["category_name"] = category_title.strip()
+                       except:
+                         category_data["category_name"] = "could not find category title"
+
+
+                       print(f"    Processing category: {category_data['category_name']}")
+
+
+                       # 5. Get assignments
+                       assignments = category.xpath("./following-sibling::tr[contains(@class, 'item-row') and @data-parent-id=$category_id]", category_id = category.get("data-id"))
+
+                       for assignment in assignments:
+                          try:
+                            assignment_data = {}
+                            title = assignment.xpath(".//a/text()")[0].strip()
+                            assignment_data["title"] = title
+
+                            try:
+                                grade = assignment.xpath(".//span[@class='rounded-grade']/text()")[0]
+                                max_grade = assignment.xpath(".//span[@class='max-grade']/text()")[0]
+                                assignment_data["grade"] = f"{grade}{max_grade}"
+                            except IndexError:
+                                assignment_data["grade"] = assignment.xpath(".//div[@class='td-content-wrapper']/text()")[0].strip()
+
+                            try:
+                                comment = assignment.xpath(".//div[@class='td-content-wrapper']/span[@class='comment']/text()")[0].strip()
+                                assignment_data["comment"] = comment
+                            except:
+                                assignment_data["comment"] = "No comment"
+
+                            print(f"        📝 {assignment_data['title']}: {assignment_data['grade']} comment: {assignment_data.get('comment')}")
+                            category_data["assignments"].append(assignment_data)
+
+                          except Exception as e:
+                              print(f"      Error processing assignment: {str(e)}")
+                              continue
+
+
+                       period_data["categories"].append(category_data)
+                     course_data["assignments"].append(period_data)
+                all_course_data.append(course_data)
+          print("\nFinished all course data extraction.")
+          return all_course_data
+      except Exception as e:
+          print(f"Error in get_all_courses_data: {str(e)}")
+          return None

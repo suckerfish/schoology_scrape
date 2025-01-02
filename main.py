@@ -21,13 +21,17 @@ sch_driver = SchoologyDriver(download_path)
 sch_driver.login(url, email, password)
 
 # After login, navigate to grades page
-# Test the math course expansion
-print("\nTesting math course expansion...")
-success = sch_driver.test_math_expansion()
+# Get all courses data
+print("\nGetting all courses data...")
+all_courses_data = sch_driver.get_all_courses_data()
 
-if success:
-    print("Successfully expanded math course and found test assignment!")
+if all_courses_data:
+  print("\nAll course data:")
+  print(json.dumps(all_courses_data, indent=4))
+  with open('all_courses_data.json', 'w') as f:
+    json.dump(all_courses_data, f, indent=4)
 else:
-    print("Failed to expand math course properly")
+  print("Failed to get course data")
 
 sch_driver.close()
+
