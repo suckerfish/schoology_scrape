@@ -24,7 +24,7 @@ all_courses_data = sch_driver.get_all_courses_data()
 if all_courses_data:
     # Save with current timestamp
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f'all_courses_data_{timestamp}.json'
+    filename = f'data/all_courses_data_{timestamp}.json'
     
     with open(filename, 'w') as f:
         json.dump(all_courses_data, f, indent=2)
