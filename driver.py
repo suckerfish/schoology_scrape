@@ -25,6 +25,7 @@ class SchoologyDriver:
         chrome_options.add_argument("--ignore-certificate-errors")
         chrome_options.add_argument("--disable-plugins-discovery")
         chrome_options.add_argument("--incognito")
+        chrome_options.add_argument("--headless=new")  # Use new headless mode
         self.driver = uc.Chrome(options=chrome_options)
 
     def login(self, url, email, password):
