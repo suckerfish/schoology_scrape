@@ -4,6 +4,8 @@ import json
 import datetime
 from pathlib import Path
 from deepdiff import DeepDiff
+from gemini_client import Gemini
+
 
 # Set the download path, URL, and credentials
 download_path = '.'
@@ -26,9 +28,29 @@ if all_courses_data:
     latest_file = sorted(Path('data').glob('all_courses_data_*.json'))[-1] if sorted(Path('data').glob('all_courses_data_*.json')) else None
     
     if not latest_file or DeepDiff(json.load(open(latest_file)), all_courses_data):
+        # Save new data
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        with open(f'data/all_courses_data_{timestamp}.json', 'w') as f:
+        new_file = f'data/all_courses_data_{timestamp}.json'
+        with open(new_file, 'w') as f:
             json.dump(all_courses_data, f, indent=2)
+            
+        # Compare with LLM if there's a previous file
+        if latest_file:
+            gemini = Gemini()
+            prompt = """You are analyzing changes in student grades between two JSON files. The first file shows previous grades, the second shows current grades.
+                    Please describe:
+                    1. New assignments added
+                    2. Grade changes on existing assignments
+                    3. Changes in overall course grades or period grades
+
+                    Previous grades: {previous}
+                    Current grades: {current}""".format(
+                        previous=json.load(open(latest_file)),
+                        current=all_courses_data
+                    )
+            changes = gemini.ask(prompt)
+            with open(f'data/changes_{timestamp}.txt', 'w') as f:
+                f.write(changes)
 else:
     print("Failed to get course data")
 
