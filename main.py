@@ -37,11 +37,12 @@ if all_courses_data:
         # Compare with LLM if there's a previous file
         if latest_file:
             gemini = Gemini()
-            prompt = """You are analyzing changes in student grades between two JSON files. The first file shows previous grades, the second shows current grades.
-                    Please describe:
+            prompt = """You are analyzing changes between two JSON files. The first file shows previous grades/assigments, the second shows current grades/assignments.
+                    Please briefly describe:
                     1. New assignments added
                     2. Grade changes on existing assignments
                     3. Changes in overall course grades or period grades
+                    4. Your responses should be brief and to the point. Do not discuss anything that did not change.
 
                     Previous grades: {previous}
                     Current grades: {current}""".format(
