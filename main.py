@@ -42,7 +42,9 @@ if all_courses_data:
                     1. New assignments added
                     2. Grade changes on existing assignments
                     3. Changes in overall course grades or period grades
-                    4. Your responses should be brief and to the point. Do not discuss anything that did not change.
+                    4. Any comments added
+                    5. Any other notable changes
+                    6. Your responses should be brief and to the point. Do not discuss anything that did not change.
 
                     Previous grades: {previous}
                     Current grades: {current}""".format(

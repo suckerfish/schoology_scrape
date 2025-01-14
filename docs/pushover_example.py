@@ -1,12 +1,11 @@
 import requests
-import os
 
 
-def send_pushover_message(message, title=None, url=None, url_title=None, attachment=None, priority=None, sound=None):
+def send_pushover_message(app_token, user_key, message, title=None, url=None, url_title=None, attachment=None, priority=None, sound=None):
     url = 'https://api.pushover.net/1/messages.json'
     data = {
-        'token': os.getenv('pushover_token'),
-        'user': os.getenv('pushover_userkey'),
+        'token': app_token,
+        'user': user_key,
         'message': message,
     }
 
@@ -29,10 +28,11 @@ def send_pushover_message(message, title=None, url=None, url_title=None, attachm
     return response.json()
 
 # Example usage
+app_token = 'apptoken'  # Replace with your app's API token
+user_key = 'userkey'   # Replace with your user/group key
 message = 'Hello from Python!'    # Your message content
-#attachment = 'screenshot.png'
+attachment = 'screenshot.png'
 
 # Call the function with attachment
-response = send_pushover_message(message, attachment=None)
+response = send_pushover_message(app_token, user_key, message, attachment=attachment)
 print(response)
-

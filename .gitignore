@@ -1,8 +1,4 @@
 .venv
 .idea
-grades_dump.txt
-grades_snapshot_20241229_212247.json
-grades_snapshot_20241229_213837.json
-grades_snapshot_20241229_214312.json
-grades_snapshot_20241229_214559.json
+data
 __pycache__
