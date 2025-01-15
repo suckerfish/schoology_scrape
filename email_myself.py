@@ -21,5 +21,4 @@ def send_email_to_myself(receiver_email, subject, body):
     server.sendmail(sender_email, receiver_email, msg.as_string())
     server.quit()
 
-# Call the function to send the email
-send_email_to_myself("cynical@gmail.com", "Test Email", "This is a test email sent to myself.")
+

@@ -28,11 +28,6 @@ def send_pushover_message(message, title=None, url=None, url_title=None, attachm
     response = requests.post(url, data=data, files=files if files else None)
     return response.json()
 
-# Example usage
-message = 'Hello from Python!'    # Your message content
-#attachment = 'screenshot.png'
 
-# Call the function with attachment
-response = send_pushover_message(message, attachment=None)
-print(response)
+
 

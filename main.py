@@ -5,6 +5,8 @@ import datetime
 from pathlib import Path
 from deepdiff import DeepDiff
 from gemini_client import Gemini
+from pushover import send_pushover_message
+from email_myself import send_email_to_myself
 
 
 # Set the download path, URL, and credentials
@@ -54,6 +56,10 @@ if all_courses_data:
             changes = gemini.ask(prompt)
             with open(f'data/changes_{timestamp}.txt', 'w') as f:
                 f.write(changes)
+            send_pushover_message("New changes detected in grades")
+            send_email_to_myself("cynical@gmail.com", "New changes detected in grades", changes)
+            
+
 else:
     print("Failed to get course data")
 
