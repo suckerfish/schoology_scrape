@@ -28,6 +28,15 @@ def send_pushover_message(message, title=None, url=None, url_title=None, attachm
     response = requests.post(url, data=data, files=files if files else None)
     return response.json()
 
-
+if __name__ == "__main__":
+    send_pushover_message(
+        message="Hello, world!",
+        title="Test Message",
+        url="https://example.com",
+        url_title="Example URL",
+        # attachment="path/to/your/file.jpg",
+        priority=1,
+        sound="pushover"
+    )
 
 
