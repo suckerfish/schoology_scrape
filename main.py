@@ -1,3 +1,4 @@
+#!.venv/bin/python
 from driver import SchoologyDriver
 import os
 import json
