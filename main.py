@@ -1,4 +1,4 @@
-#!.venv/bin/python
+#!/Users/chad/Documents/PythonProject/schoology_scrape/.venv/bin/python
 from driver import SchoologyDriver
 import os
 import json
