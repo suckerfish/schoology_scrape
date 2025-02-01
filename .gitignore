@@ -1,4 +1,6 @@
 .venv
+.env
 .idea
 data
 __pycache__
+scrape.log
