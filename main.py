@@ -1,5 +1,6 @@
 #!/Users/chad/Documents/PythonProject/schoology_scrape/.venv/bin/python
 from driver import SchoologyDriver
+from dotenv import load_dotenv
 import os
 import json
 import datetime
@@ -8,13 +9,16 @@ from deepdiff import DeepDiff
 from gemini_client import Gemini
 from pushover import send_pushover_message
 from email_myself import send_email_to_myself
+from dynamodb_manager import DynamoDBManager
 
+# Load environment variables
+load_dotenv()
 
 # Set the download path, URL, and credentials
 download_path = '.'
 url = 'https://lvjusd.schoology.com/'
-email = os.environ.get('evan_google')
-password = os.environ.get('evan_google_pw')
+email = os.getenv('evan_google')
+password = os.getenv('evan_google_pw')
 
 # Initialize the driver
 sch_driver = SchoologyDriver(download_path)
@@ -36,6 +40,10 @@ if all_courses_data:
         new_file = f'data/all_courses_data_{timestamp}.json'
         with open(new_file, 'w') as f:
             json.dump(all_courses_data, f, indent=2)
+            
+        # Save to DynamoDB
+        db = DynamoDBManager()
+        db.add_entry(all_courses_data)
             
         # Compare with LLM if there's a previous file
         if latest_file:
