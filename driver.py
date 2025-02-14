@@ -62,27 +62,25 @@ class SchoologyDriver:
             return None
         
     def get_grade_text(self, element):
-        """Helper method to get grade text in various formats"""
         try:
-            # Try getting alpha-grade first
+            # Check for missing assignment using the specific classes
+            missing = element.xpath(".//span[@class='exception-text'][text()='Missing']")
+            if missing:
+                return "Missing"
+            
+            # Original grade checking logic
             alpha_grade = element.xpath(".//span[@class='alpha-grade primary-grade']/text()")
-            
-            # Try getting numeric grade
             numeric_grade = element.xpath(".//span[contains(@class, 'rounded-grade')]/text()")
-            
-            # Try getting any other grade text
             other_grade = element.xpath(".//span[@class='awarded-grade']//text()")
             
-            # Combine all available grade components
             grade_parts = []
             if alpha_grade:
                 grade_parts.extend([g.strip() for g in alpha_grade if g.strip()])
             if numeric_grade:
                 grade_parts.extend([g.strip() for g in numeric_grade if g.strip()])
-            elif other_grade:  # Only use other_grade if no numeric_grade
+            elif other_grade:
                 grade_parts.extend([g.strip() for g in other_grade if g.strip()])
-                
-            # Join all parts and clean up
+            
             grade = ' '.join(grade_parts).strip()
             return grade if grade else "Not graded"
             
