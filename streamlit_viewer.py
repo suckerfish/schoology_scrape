@@ -69,8 +69,8 @@ def display_grades_tree(grades_data):
                         assignments = category_data['assignments']
                         if assignments:
                             df = pd.DataFrame(
-                                [[a['title'], a['grade']] for a in assignments],
-                                columns=['Assignment', 'Grade']
+                                [[a['title'], a.get('due_date', ''), a['grade']] for a in assignments],
+                                columns=['Assignment', 'Due Date', 'Grade']
                             )
                             st.table(df.set_index('Assignment'))
                     st.divider()
