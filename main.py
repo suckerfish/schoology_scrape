@@ -65,8 +65,17 @@ if all_courses_data:
             changes = gemini.ask(prompt)
             with open(f'data/changes_{timestamp}.txt', 'w') as f:
                 f.write(changes)
+            
+            # Format the email content
+            formatted_email = f"""
+Changes Detected in Schoology Grades
+
+{changes}
+
+This message was automatically generated at {timestamp}.
+"""
             send_pushover_message("New changes detected in grades")
-            send_email_to_myself("cynical@gmail.com", "New changes detected in grades", changes)
+            send_email_to_myself("cynical@gmail.com", "New changes detected in grades", formatted_email)
             
 
 else:
