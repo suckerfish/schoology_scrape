@@ -44,6 +44,9 @@ def display_grades_tree(grades_data):
             font-weight: bold;
             background-color: #f0f2f6;
         }
+        .stDataFrame {
+            width: 100% !important;
+        }
         </style>
     """, unsafe_allow_html=True)
     
@@ -69,7 +72,7 @@ def display_grades_tree(grades_data):
                                 [[a['title'], a['grade']] for a in assignments],
                                 columns=['Assignment', 'Grade']
                             )
-                            st.dataframe(df, hide_index=True)
+                            st.table(df.set_index('Assignment'))
                     st.divider()
 
 def display_grade_changes(current_data, previous_data):
