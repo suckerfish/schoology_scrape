@@ -25,3 +25,4 @@ python-dotenv==1.0.1
 nicegui==1.4.6
 streamlit
 plotly
+deepdiff
