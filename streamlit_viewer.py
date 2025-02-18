@@ -37,25 +37,40 @@ def format_snapshot_label(snapshot):
     return date.strftime('%b %d, %Y at %H:%M')
 
 def display_grades_tree(grades_data):
+    # Add custom CSS to style nested expanders
+    st.markdown("""
+        <style>
+        .streamlit-expanderHeader {
+            font-weight: bold;
+            background-color: #f0f2f6;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
     for course_name, course_data in grades_data.items():
         with st.expander(f"{course_name} ({course_data['course_grade']})"):
             # Sort periods by name, which will put T1 before T2
             sorted_periods = sorted(course_data['periods'].items())
-            for period_name, period_data in sorted_periods:
-                st.subheader(f"{period_name} - {period_data['period_grade']}")
-                
-                for category_name, category_data in period_data['categories'].items():
-                    st.write(f"**{category_name} - {category_data['category_grade']}**")
-                    
-                    # Create a DataFrame for assignments in this category
-                    assignments = category_data['assignments']
-                    if assignments:
-                        df = pd.DataFrame(
-                            [[a['title'], a['grade']] for a in assignments],
-                            columns=['Assignment', 'Grade']
-                        )
-                        st.dataframe(df, hide_index=True)
-                st.divider()
+            
+            # Create tabs for each period
+            period_tabs = st.tabs([f"{period_name} - {period_data['period_grade']}" 
+                                 for period_name, period_data in sorted_periods])
+            
+            # Fill each tab with its content
+            for tab, (period_name, period_data) in zip(period_tabs, sorted_periods):
+                with tab:
+                    for category_name, category_data in period_data['categories'].items():
+                        st.write(f"**{category_name} - {category_data['category_grade']}**")
+                        
+                        # Create a DataFrame for assignments in this category
+                        assignments = category_data['assignments']
+                        if assignments:
+                            df = pd.DataFrame(
+                                [[a['title'], a['grade']] for a in assignments],
+                                columns=['Assignment', 'Grade']
+                            )
+                            st.dataframe(df, hide_index=True)
+                    st.divider()
 
 def display_grade_changes(current_data, previous_data):
     st.header("Changes from Previous Snapshot")
