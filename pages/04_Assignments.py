@@ -4,6 +4,11 @@ from dynamodb_manager import DynamoDBManager
 
 st.set_page_config(layout="wide", page_title="Assignment List")
 
+def clean_text(text):
+    if not isinstance(text, str):
+        return text
+    return text.replace("This material is not available within Schoology", "").strip()
+
 def get_latest_snapshots(count=2):
     db = DynamoDBManager()
     response = db.table.scan(
@@ -19,16 +24,19 @@ def get_latest_snapshots(count=2):
 def extract_assignments(data):
     assignments = []
     for course_name, course_data in data.items():
+        course_name = clean_text(course_name)
         for period_name, period_data in course_data['periods'].items():
+            period_name = clean_text(period_name)
             for category_name, category_data in period_data['categories'].items():
+                category_name = clean_text(category_name)
                 for assignment in category_data['assignments']:
                     assignments.append({
                         'Course': course_name,
                         'Period': period_name,
                         'Category': category_name,
-                        'Assignment': assignment['title'],
-                        'Grade': assignment['grade'],
-                        'Due Date': assignment.get('due_date', 'N/A')
+                        'Assignment': clean_text(assignment['title']),
+                        'Grade': clean_text(assignment['grade']),
+                        'Due Date': clean_text(assignment.get('due_date', 'N/A'))
                     })
     return pd.DataFrame(assignments)
 
