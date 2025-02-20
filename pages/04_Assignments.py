@@ -28,7 +28,8 @@ def extract_assignments(data):
                         'Category': category_name,
                         'Assignment': assignment['title'],
                         'Grade': assignment['grade'],
-                        'Due Date': assignment.get('due_date', 'N/A')
+                        'Due Date': assignment.get('due_date', 'N/A'),
+                        'Notes': assignment.get('comment', '')
                     })
     return pd.DataFrame(assignments)
 
