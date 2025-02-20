@@ -56,10 +56,17 @@ class SchoologyDriver:
             if not nodes:
                 return None
             # Combine all text nodes and strip whitespace
-            return ' '.join([node.strip() for node in nodes if node.strip()]) or None
+            text = ' '.join([node.strip() for node in nodes if node.strip()]) or None
+            return self.clean_text(text) if text else None
         except Exception as e:
             print(f"Error getting text content: {str(e)}")
             return None
+
+    def clean_text(self, text):
+        """Clean unwanted phrases from text"""
+        if not isinstance(text, str):
+            return text
+        return text.replace("This material is not available within Schoology", "").strip()
         
     def get_grade_text(self, element):
         try:
@@ -249,14 +256,7 @@ class SchoologyDriver:
                     all_courses_data[course_title] = course_data
 
             print("\nFinished all course data extraction.")
-            cleaned_data = {
-                course: {
-                    assignment.replace("This material is not available within Schoology", "").strip(): grade
-                    for assignment, grade in grades.items()
-                }
-                for course, grades in all_courses_data.items()
-            }
-            return cleaned_data
+            return all_courses_data
 
         except Exception as e:
             print(f"Error in get_all_courses_data: {str(e)}")
