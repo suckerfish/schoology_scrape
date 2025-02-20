@@ -66,7 +66,7 @@ class SchoologyDriver:
         """Clean unwanted phrases from text"""
         if not isinstance(text, str):
             return text
-        return text.replace("This material is not available within Schoology", "").strip()
+        return text.replace("Note: This material is not available within Schoology", "").strip()
         
     def get_grade_text(self, element):
         try:
