@@ -44,39 +44,6 @@ if all_courses_data:
         # Save to DynamoDB
         db = DynamoDBManager()
         db.add_entry(all_courses_data)
-            
-        # Compare with LLM if there's a previous file
-        if latest_file:
-            gemini = Gemini()
-            prompt = """You are analyzing changes between two JSON files. The first file shows previous grades/assigments, the second shows current grades/assignments.
-                    Please briefly describe:
-                    1. New assignments added
-                    2. Grade changes on existing assignments
-                    3. Changes in overall course grades or period grades
-                    4. Any comments added
-                    5. Any other notable changes
-                    6. Your responses should be brief and to the point. Do not discuss anything that did not change.
-
-                    Previous grades: {previous}
-                    Current grades: {current}""".format(
-                        previous=json.load(open(latest_file)),
-                        current=all_courses_data
-                    )
-            changes = gemini.ask(prompt)
-            with open(f'data/changes_{timestamp}.txt', 'w') as f:
-                f.write(changes)
-            
-            # Format the email content
-            formatted_email = f"""
-Changes Detected in Schoology Grades
-
-{changes}
-
-This message was automatically generated at {timestamp}.
-"""
-            send_pushover_message("New changes detected in grades")
-            send_email_to_myself("cynical@gmail.com", "New changes detected in grades", formatted_email)
-            
 
 else:
     print("Failed to get course data")
