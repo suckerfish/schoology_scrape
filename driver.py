@@ -249,7 +249,14 @@ class SchoologyDriver:
                     all_courses_data[course_title] = course_data
 
             print("\nFinished all course data extraction.")
-            return all_courses_data
+            cleaned_data = {
+                course: {
+                    assignment.replace("This material is not available within Schoology", "").strip(): grade
+                    for assignment, grade in grades.items()
+                }
+                for course, grades in all_courses_data.items()
+            }
+            return cleaned_data
 
         except Exception as e:
             print(f"Error in get_all_courses_data: {str(e)}")
