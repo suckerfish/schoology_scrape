@@ -25,7 +25,12 @@ class SchoologyDriver:
         chrome_options.add_argument("--ignore-certificate-errors")
         chrome_options.add_argument("--disable-plugins-discovery")
         chrome_options.add_argument("--incognito")
-        chrome_options.add_argument("--headless=new")  # Use new headless mode
+        chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--window-size=1920,1080")
+        chrome_options.add_argument("--start-maximized")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument('--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36')
         self.driver = uc.Chrome(options=chrome_options)
 
     def login(self, url, email, password):

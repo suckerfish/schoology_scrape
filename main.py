@@ -1,4 +1,4 @@
-#!/Users/chad/Documents/PythonProject/schoology_scrape/.venv/bin/python
+#!.venv/bin/python
 from driver import SchoologyDriver
 from dotenv import load_dotenv
 import os
