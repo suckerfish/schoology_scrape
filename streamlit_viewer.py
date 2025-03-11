@@ -82,6 +82,24 @@ def display_grade_changes(current_data, previous_data):
         st.info("No previous snapshot available for comparison")
         return
     
+    # Add debug toggle
+    if st.checkbox("Show debug info", value=False):
+        st.write("Debug - Current selected snapshot date:", 
+                list(current_data.keys())[0] if current_data else "None")
+        st.write("Debug - Previous snapshot date:", 
+                list(previous_data.keys())[0] if previous_data else "None")
+        
+        # Check specifically for our test case
+        if "Reading 6: Section 1" in current_data:
+            reading_data = current_data["Reading 6: Section 1"]
+            if "periods" in reading_data and "2024-2025 T3" in reading_data["periods"]:
+                t3_data = reading_data["periods"]["2024-2025 T3"]
+                if "categories" in t3_data and "Classwork/homework (30%)" in t3_data["categories"]:
+                    assignments = t3_data["categories"]["Classwork/homework (30%)"]["assignments"]
+                    st.write(f"Debug - Current Reading T3 assignments: {len(assignments)}")
+                    for a in assignments:
+                        st.write(f"- {a['title']}: {a['grade']}")
+    
     changes_found = False
     
     # Compare course by course
