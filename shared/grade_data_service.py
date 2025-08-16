@@ -74,6 +74,19 @@ class DynamoDBGradeDataService(GradeDataService):
 
 
 # Factory function to create the appropriate service
-def create_grade_data_service() -> GradeDataService:
-    """Create and return a grade data service instance."""
-    return DynamoDBGradeDataService()
+def create_grade_data_service(enhanced: bool = False, config=None) -> GradeDataService:
+    """
+    Create and return a grade data service instance.
+    
+    Args:
+        enhanced: If True, return enhanced service with caching and error handling
+        config: Optional configuration object
+        
+    Returns:
+        GradeDataService implementation
+    """
+    if enhanced:
+        from enhanced_grade_data_service import create_enhanced_grade_data_service
+        return create_enhanced_grade_data_service(config=config)
+    else:
+        return DynamoDBGradeDataService()

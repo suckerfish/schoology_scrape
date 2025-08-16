@@ -100,11 +100,11 @@ scraper.py → comparator.py → storage → notifier.py
 
 ## Implementation Priority
 
-### **Phase 1: Viewer Decoupling** (Immediate)
-1. Extract Streamlit app to separate directory
-2. Create shared data service interface
-3. Update import dependencies
-4. Test independent deployment
+### ~~**Phase 1: Viewer Decoupling**~~ ✅ **COMPLETED**
+1. ~~Extract Streamlit app to separate directory~~ ✅
+2. ~~Create shared data service interface~~ ✅
+3. ~~Update import dependencies~~ ✅
+4. ~~Test independent deployment~~ ✅
 
 ### **Phase 2: Service Layer** (Short-term)
 1. Implement `GradeDataService` abstraction
