@@ -1,5 +1,5 @@
 #!.venv/bin/python
-from driver import SchoologyDriver
+from driver_standard import SchoologyDriver
 from dotenv import load_dotenv
 import os
 import json
@@ -29,7 +29,7 @@ sch_driver.login(url, email, password)
 # After login, navigate to grades page
 # Get all courses data
 print("\nGetting all courses data...")
-all_courses_data = sch_driver.get_all_courses_data()
+all_courses_data = sch_driver.get_all_courses_data(email=email)
 
 if all_courses_data:
     latest_file = sorted(Path('data').glob('all_courses_data_*.json'))[-1] if sorted(Path('data').glob('all_courses_data_*.json')) else None
