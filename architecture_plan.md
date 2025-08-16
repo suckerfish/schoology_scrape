@@ -133,6 +133,7 @@ pipeline/scraper.py → pipeline/comparator.py → storage → pipeline/notifier
 
 ### **Technical Debt to Address**:
 - Remove `undetected-chromedriver==3.5.4` from requirements.txt (no longer used)
+- ~~**Restore conditional storage logic**~~ ✅ (Only save when data changes - restored and enhanced)
 - ~~Add comprehensive error handling~~ ✅ (Pipeline error handling system)
 - ~~Implement retry logic for web scraping~~ ✅ (Retry decorators with multiple strategies)
 - ~~Add caching to Streamlit pages~~ ✅ (Enhanced dashboard with @st.cache_data)

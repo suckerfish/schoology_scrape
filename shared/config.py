@@ -54,12 +54,20 @@ class AppConfig:
 
 
 @dataclass
+class StorageConfig:
+    """Storage behavior configuration."""
+    conditional_save: bool = True      # Only save data when changes are detected
+    force_save_on_error: bool = True   # Fail-safe: save data if change detection fails
+
+
+@dataclass
 class Config:
     """Master configuration container."""
     schoology: SchoologyConfig
     aws: AWSConfig
     notifications: NotificationConfig
     app: AppConfig
+    storage: StorageConfig
     
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -109,6 +117,10 @@ class Config:
                 "cache_ttl_seconds": self.app.cache_ttl_seconds,
                 "max_retries": self.app.max_retries,
                 "retry_delay_seconds": self.app.retry_delay_seconds,
+            },
+            "storage": {
+                "conditional_save": self.storage.conditional_save,
+                "force_save_on_error": self.storage.force_save_on_error,
             }
         }
 
@@ -173,11 +185,17 @@ def load_config(env_file: Optional[str] = None, config_file: str = "config.toml"
         retry_delay_seconds=toml_config.get('app', {}).get('retry_delay_seconds', 2)
     )
     
+    storage_config = StorageConfig(
+        conditional_save=toml_config.get('storage', {}).get('conditional_save', True),
+        force_save_on_error=toml_config.get('storage', {}).get('force_save_on_error', True)
+    )
+    
     return Config(
         schoology=schoology_config,
         aws=aws_config,
         notifications=notification_config,
-        app=app_config
+        app=app_config,
+        storage=storage_config
     )
 
 
@@ -227,6 +245,7 @@ if __name__ == "__main__":
         print(f"📱 Pushover Enabled: {bool(config.notifications.pushover_token)}")
         print(f"🤖 Gemini Enabled: {bool(config.notifications.gemini_api_key)}")
         print(f"📊 Cache TTL: {config.app.cache_ttl_seconds}s")
+        print(f"💾 Conditional Save: {config.storage.conditional_save}")
     except ValueError as e:
         print(f"❌ Configuration error: {e}")
     except Exception as e:

@@ -86,6 +86,7 @@ Each snapshot is timestamped and stored both locally (JSON) and in DynamoDB for 
 - ✅ **COMPLETED Phase 1**: Decoupled Streamlit viewer from scraper components
 - ✅ **COMPLETED Phase 2**: Service layer abstraction and centralized configuration management  
 - ✅ **COMPLETED Phase 3**: Pipeline refactoring with plugin-based notifications and error handling
+- ✅ **COMPLETED Conditional Storage**: Restored logic to only save data when changes are detected
 
 ### Architecture Evolution
 - ✅ **Plugin-Based Notifications**: `notifications/` directory with abstract providers (Pushover, Email, Gemini)
@@ -93,6 +94,7 @@ Each snapshot is timestamped and stored both locally (JSON) and in DynamoDB for 
 - ✅ **Error Handling**: Comprehensive retry logic, circuit breakers, and severity-based error tracking
 - ✅ **Configuration Management**: Hybrid TOML + .env approach with structured dataclasses
 - ✅ **Testing Framework**: `test_pipeline.py` validates all components end-to-end
+- ✅ **Conditional Storage**: Enhanced orchestrator with configurable storage behavior (`config.toml` storage section)
 
 ### Legacy Cleanup Opportunities  
 - Remove `undetected-chromedriver==3.5.4` from requirements.txt (no longer used)

@@ -51,9 +51,8 @@ class GradePipeline:
             self.logger.info("Step 2: Detecting changes")
             changes = self._detect_changes(grade_data)
             
-            # Step 3: Save data
-            self.logger.info("Step 3: Saving grade data")
-            save_success = self._save_grade_data(grade_data)
+            # Step 3: Save data (conditionally based on changes)
+            save_success = self._save_grade_data_conditional(grade_data, changes)
             if not save_success:
                 self.logger.warning("Failed to save grade data, but continuing pipeline")
             
@@ -124,17 +123,18 @@ class GradePipeline:
     def _detect_changes(self, grade_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Detect changes with fallback mechanisms"""
         try:
-            # Try to detect changes using the data service first
-            changes = self.comparator.detect_changes(grade_data)
+            # Use file-based comparison as primary method (DynamoDB method not implemented)
+            self.logger.info("Using file-based change detection")
+            changes = self.comparator.detect_changes_from_file(grade_data)
             return changes
             
         except Exception as e:
-            self.logger.error(f"Error detecting changes via data service: {e}")
+            self.logger.error(f"Error in file-based change detection: {e}")
             
             try:
-                # Fallback to file-based comparison
-                self.logger.info("Falling back to file-based change detection")
-                changes = self.comparator.detect_changes_from_file(grade_data)
+                # Fallback to data service method (which always returns initial)
+                self.logger.info("Falling back to data service change detection")
+                changes = self.comparator.detect_changes(grade_data)
                 return changes
                 
             except Exception as e2:
@@ -176,6 +176,58 @@ class GradePipeline:
             success = False
         
         return success
+    
+    def _save_grade_data_conditional(self, grade_data: Dict[str, Any], changes: Optional[Dict[str, Any]]) -> bool:
+        """
+        Save grade data conditionally based on change detection results and configuration
+        
+        Args:
+            grade_data: The scraped grade data to save
+            changes: Change detection results (None if no changes, dict if changes/initial)
+            
+        Returns:
+            bool: True if save operation succeeded or was skipped appropriately
+        """
+        # Check configuration settings
+        should_save_conditionally = self.config.storage.conditional_save
+        force_save_on_error = self.config.storage.force_save_on_error
+        
+        # Determine whether to save based on changes and configuration
+        should_save = False
+        reason = ""
+        
+        if not should_save_conditionally:
+            # Configuration disables conditional saving - always save
+            should_save = True
+            reason = "conditional saving disabled in configuration"
+        elif changes is None:
+            # No changes detected
+            should_save = False
+            reason = "no changes detected in grade data"
+        elif changes.get('type') == 'initial':
+            # Initial data capture (no previous data to compare)
+            should_save = True
+            reason = "initial grade data capture"
+        elif changes.get('type') == 'update':
+            # Changes detected
+            should_save = True
+            reason = f"changes detected: {changes.get('summary', 'unknown changes')}"
+        else:
+            # Unknown change type or change detection failed
+            if force_save_on_error:
+                should_save = True
+                reason = "change detection returned unexpected result, saving as fail-safe"
+            else:
+                should_save = False
+                reason = "change detection failed and fail-safe disabled"
+        
+        # Log the decision
+        if should_save:
+            self.logger.info(f"Step 3: Saving grade data - {reason}")
+            return self._save_grade_data(grade_data)
+        else:
+            self.logger.info(f"Step 3: Skipping save - {reason}")
+            return True  # Return True since skipping is the correct behavior
     
     def _send_notifications(self, changes: Dict[str, Any]) -> bool:
         """Send notifications about changes"""

@@ -27,3 +27,8 @@ dynamodb_table_name = "SchoologyGrades"
 [notifications]
 # Notification preferences
 email_enabled = true
+
+[storage]
+# Storage behavior configuration
+conditional_save = true      # Only save data when changes are detected
+force_save_on_error = true   # Fail-safe: save data if change detection fails
