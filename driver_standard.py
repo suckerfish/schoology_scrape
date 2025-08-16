@@ -98,18 +98,34 @@ class SchoologyDriver:
             if missing:
                 return "Missing"
             
-            # Original grade checking logic
+            # Enhanced grade checking logic
             alpha_grade = element.xpath(".//span[@class='alpha-grade primary-grade']/text()")
             numeric_grade = element.xpath(".//span[contains(@class, 'rounded-grade')]/text()")
-            other_grade = element.xpath(".//span[@class='awarded-grade']//text()")
+            
+            # Enhanced awarded-grade handling for structures like "D 2"
+            awarded_grade_text = element.xpath(".//span[@class='awarded-grade']/text()")
+            awarded_grade_numeric = element.xpath(".//span[@class='awarded-grade']//span[contains(@class, 'rounded-grade')]/text()")
+            
+            # Get max grade if available (e.g., "/ 3")
+            max_grade = element.xpath(".//span[@class='max-grade']/text()")
             
             grade_parts = []
+            
+            # Handle different grade formats
             if alpha_grade:
                 grade_parts.extend([g.strip() for g in alpha_grade if g.strip()])
-            if numeric_grade:
+            elif awarded_grade_text or awarded_grade_numeric:
+                # Combine awarded grade parts (e.g., "D" + "2" = "D 2")
+                if awarded_grade_text:
+                    grade_parts.extend([g.strip() for g in awarded_grade_text if g.strip()])
+                if awarded_grade_numeric:
+                    grade_parts.extend([g.strip() for g in awarded_grade_numeric if g.strip()])
+            elif numeric_grade:
                 grade_parts.extend([g.strip() for g in numeric_grade if g.strip()])
-            elif other_grade:
-                grade_parts.extend([g.strip() for g in other_grade if g.strip()])
+            
+            # Add max grade if available
+            if max_grade:
+                grade_parts.extend([g.strip() for g in max_grade if g.strip()])
             
             grade = ' '.join(grade_parts).strip()
             return grade if grade else "Not graded"
@@ -251,12 +267,15 @@ class SchoologyDriver:
                                                 due_date = due_date[4:]
                                             assignment_data["due_date"] = due_date.strip()
 
-                                        # Get comment if available
-                                        comment = (
-                                            self.get_text_content(assignment, ".//span[@class='comment']/text()")
-                                            or "No comment"
-                                        )
-                                        assignment_data["comment"] = comment.strip()
+                                        # Get comment if available - exclude visually-hidden text
+                                        comment_element = assignment.xpath(".//span[@class='comment']")
+                                        if comment_element:
+                                            # Get all text but exclude visually-hidden spans
+                                            comment_texts = comment_element[0].xpath(".//text()[not(parent::span[@class='visually-hidden'])]")
+                                            comment = ' '.join([t.strip() for t in comment_texts if t.strip()])
+                                        else:
+                                            comment = "No comment"
+                                        assignment_data["comment"] = comment.strip() if comment.strip() else "No comment"
 
                                         print(f"        📝 {title}: {assignment_data['grade']}")
                                         category_data["assignments"].append(assignment_data)
