@@ -1,51 +1,75 @@
 #!.venv/bin/python
-from driver_standard import SchoologyDriver
-from dotenv import load_dotenv
-import os
-import json
-import datetime
+"""
+Refactored main.py using the new pipeline architecture
+"""
+import logging
+import sys
 from pathlib import Path
-from deepdiff import DeepDiff
-from gemini_client import Gemini
-from pushover import send_pushover_message
-from email_myself import send_email_to_myself
-from dynamodb_manager import DynamoDBManager
+from pipeline.orchestrator import GradePipeline
+from pipeline.error_handling import error_handler
+from shared.config import get_config
 
-# Load environment variables
-load_dotenv()
+def setup_logging():
+    """Setup logging configuration"""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler('grade_scraper.log')
+        ]
+    )
 
-# Set the download path, URL, and credentials
-download_path = '.'
-url = 'https://lvjusd.schoology.com/'
-email = os.getenv('evan_google')
-password = os.getenv('evan_google_pw')
-
-# Initialize the driver
-sch_driver = SchoologyDriver(download_path)
-
-# Login
-sch_driver.login(url, email, password)
-
-# After login, navigate to grades page
-# Get all courses data
-print("\nGetting all courses data...")
-all_courses_data = sch_driver.get_all_courses_data(email=email)
-
-if all_courses_data:
-    latest_file = sorted(Path('data').glob('all_courses_data_*.json'))[-1] if sorted(Path('data').glob('all_courses_data_*.json')) else None
+def main():
+    """Main entry point for the grade scraper"""
+    # Setup logging
+    setup_logging()
+    logger = logging.getLogger(__name__)
     
-    if not latest_file or DeepDiff(json.load(open(latest_file)), all_courses_data):
-        # Save new data
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        new_file = f'data/all_courses_data_{timestamp}.json'
-        with open(new_file, 'w') as f:
-            json.dump(all_courses_data, f, indent=2)
+    logger.info("Starting Schoology Grade Scraper (Phase 3 Architecture)")
+    
+    try:
+        # Initialize the pipeline
+        pipeline = GradePipeline()
+        
+        # Get status before running
+        status = pipeline.get_pipeline_status()
+        logger.info(f"Pipeline status: {status}")
+        
+        # Run the complete pipeline
+        success = pipeline.run_full_pipeline(download_path='.')
+        
+        if success:
+            logger.info("Grade scraping pipeline completed successfully")
+            sys.exit(0)
+        else:
+            logger.error("Grade scraping pipeline failed")
             
-        # Save to DynamoDB
-        db = DynamoDBManager()
-        db.add_entry(all_courses_data)
+            # Get error summary
+            error_summary = error_handler.get_error_summary()
+            logger.error(f"Error summary: {error_summary}")
+            
+            sys.exit(1)
+            
+    except KeyboardInterrupt:
+        logger.info("Grade scraper interrupted by user")
+        sys.exit(0)
+        
+    except Exception as e:
+        logger.critical(f"Unexpected error in main: {e}")
+        
+        # Try to send critical error notification
+        try:
+            from pipeline.notifier import GradeNotifier
+            notifier = GradeNotifier()
+            notifier.send_error_notification(
+                "Critical error in grade scraper main",
+                f"Unexpected error: {str(e)}"
+            )
+        except:
+            pass  # Don't fail if notification fails
+        
+        sys.exit(1)
 
-else:
-    print("Failed to get course data")
-
-sch_driver.close()
+if __name__ == "__main__":
+    main()

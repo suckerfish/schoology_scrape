@@ -8,21 +8,34 @@ This is a **Schoology Grade Scraper** - an automated grade monitoring system tha
 
 ## Architecture
 
-The system follows a layered architecture:
+The system follows a **Phase 3 modular pipeline architecture** with clean separation of concerns:
 
-1. **Data Collection**: `driver_standard.py` uses standard Selenium WebDriver to scrape Schoology grades via Google OAuth
-2. **Orchestration**: `main.py` coordinates scraping, change detection (DeepDiff), and notifications  
-3. **Storage**: `dynamodb_manager.py` manages AWS DynamoDB for historical grade snapshots
-4. **Notifications**: `pushover.py`, `email_myself.py`, `gemini_client.py` for alerts and AI analysis
-5. **Dashboard**: `streamlit_viewer.py` + `pages/` multi-page interface for visualization and analysis
+1. **Data Collection**: `pipeline/scraper.py` - Pure data extraction using standard Selenium WebDriver via Google OAuth
+2. **Change Detection**: `pipeline/comparator.py` - DeepDiff-based change detection with fallback mechanisms
+3. **Notifications**: `notifications/` - Plugin-based notification system with Pushover, Email, and AI analysis
+4. **Orchestration**: `pipeline/orchestrator.py` - Main pipeline coordination with comprehensive error handling
+5. **Storage**: `dynamodb_manager.py` - AWS DynamoDB for historical grade snapshots
+6. **Dashboard**: `streamlit_viewer.py` + `pages/` - Multi-page interface for visualization and analysis
 
 ## Environment Setup
 
-Required environment variables in `.env`:
+**Configuration System**: Uses hybrid TOML + .env approach for clean separation of settings vs secrets.
+
+**Required files**:
+- `config.toml` - Non-sensitive application settings (cache, retries, URLs, etc.)
+- `.env` - Sensitive credentials only
+
+**Required environment variables in `.env`**:
 - `evan_google`/`evan_google_pw` - Google credentials for Schoology login
 - `aws_key`/`aws_secret` - AWS DynamoDB credentials  
 - `pushover_token`/`pushover_userkey` - Push notification credentials
 - `gemini_key` - Google Gemini AI API key
+
+**Application settings in `config.toml`**:
+- App settings: log level, cache TTL, retry configuration
+- Schoology settings: base URL
+- AWS settings: region, DynamoDB table name
+- Notification preferences: email enabled flag
 
 ## Common Commands
 
@@ -51,6 +64,8 @@ Each snapshot is timestamped and stored both locally (JSON) and in DynamoDB for 
 
 - **Web Scraping**: Uses standard Selenium WebDriver with OAuth flow handling for Google authentication
 - **Change Detection**: DeepDiff compares snapshots to trigger notifications only on actual changes
+- **Plugin Architecture**: Notification providers use abstract interfaces for easy extensibility
+- **Error Handling**: Comprehensive retry logic with exponential backoff and circuit breaker patterns
 - **Hierarchical Data**: Complex nested structure requires careful parsing and display logic
 - **Historical Tracking**: Immutable snapshots enable trend analysis and change attribution
 - **Multi-Modal UI**: Dashboard supports timeline navigation, filtering, and detailed assignment views
@@ -68,15 +83,17 @@ Each snapshot is timestamped and stored both locally (JSON) and in DynamoDB for 
 **IMPORTANT**: All optimizations and architectural changes require explicit user approval before implementation. Do not implement any optimization items autonomously, even if they appear in TODO lists or analysis. Always request specific permission for each optimization task before proceeding.
 
 ### Implementation Status
-- ✅ **COMPLETED**: Migrated from undetected-chromedriver to standard Selenium WebDriver
-  - `driver_standard.py` now used in production (includes OAuth account selection handling)
-  - `driver.py` preserved as backup
-  - Dependency on undetected-chromedriver can be removed from requirements.txt
+- ✅ **COMPLETED Phase 1**: Decoupled Streamlit viewer from scraper components
+- ✅ **COMPLETED Phase 2**: Service layer abstraction and centralized configuration management  
+- ✅ **COMPLETED Phase 3**: Pipeline refactoring with plugin-based notifications and error handling
 
-### Known Optimization Opportunities  
-- Add comprehensive caching to Streamlit pages
-- Optimize DynamoDB queries to replace table scans
-- Introduce service layer abstraction
-- Centralize configuration management
-- Add error handling and retry logic
-- Separate data pipeline concerns
+### Architecture Evolution
+- ✅ **Plugin-Based Notifications**: `notifications/` directory with abstract providers (Pushover, Email, Gemini)
+- ✅ **Separated Pipeline**: `pipeline/` directory with focused components (scraper, comparator, notifier, orchestrator)
+- ✅ **Error Handling**: Comprehensive retry logic, circuit breakers, and severity-based error tracking
+- ✅ **Configuration Management**: Hybrid TOML + .env approach with structured dataclasses
+- ✅ **Testing Framework**: `test_pipeline.py` validates all components end-to-end
+
+### Legacy Cleanup Opportunities  
+- Remove `undetected-chromedriver==3.5.4` from requirements.txt (no longer used)
+- Archive old backup files after successful Phase 3 operation

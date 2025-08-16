@@ -1,0 +1,29 @@
+# Schoology Grade Scraper Configuration
+# This file contains non-sensitive application settings
+# Sensitive credentials (passwords, API keys) should be in .env file
+
+[app]
+# Logging configuration
+log_level = "INFO"
+
+# Performance settings
+cache_ttl_seconds = 300  # 5 minutes
+max_retries = 3
+retry_delay_seconds = 2
+
+# File paths
+download_path = "."
+data_directory = "data"
+
+[schoology]
+# Schoology instance configuration
+base_url = "https://lvjusd.schoology.com/"
+
+[aws]
+# AWS DynamoDB configuration
+region = "us-west-1"
+dynamodb_table_name = "SchoologyGrades"
+
+[notifications]
+# Notification preferences
+email_enabled = true

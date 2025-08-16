@@ -26,3 +26,4 @@ nicegui==1.4.6
 streamlit
 plotly
 deepdiff
+tomli

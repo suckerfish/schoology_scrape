@@ -1,12 +1,19 @@
 """
 Centralized configuration management for Schoology Grade Scraper.
-Consolidates all environment variables and settings into a single source of truth.
+Loads non-sensitive settings from config.toml and credentials from .env files.
 """
 import os
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 import logging
+import sys
+
+# Handle Python version compatibility for TOML
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 
 @dataclass
@@ -106,53 +113,64 @@ class Config:
         }
 
 
-def load_config(env_file: Optional[str] = None) -> Config:
+def load_config(env_file: Optional[str] = None, config_file: str = "config.toml") -> Config:
     """
-    Load configuration from environment variables.
+    Load configuration from TOML file and environment variables.
     
     Args:
         env_file: Optional path to .env file. If None, uses default discovery.
+        config_file: Path to TOML configuration file.
         
     Returns:
         Validated Config instance.
         
     Raises:
         ValueError: If required configuration is missing or invalid.
+        FileNotFoundError: If config.toml file is not found.
     """
-    # Load environment variables
+    # Load environment variables (for sensitive credentials)
     if env_file:
         load_dotenv(env_file)
     else:
         load_dotenv()  # Auto-discover .env file
     
-    # Build configuration from environment
+    # Load TOML configuration file (for non-sensitive settings)
+    try:
+        with open(config_file, 'rb') as f:
+            toml_config = tomllib.load(f)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Configuration file '{config_file}' not found. Please create it with application settings.")
+    except Exception as e:
+        raise ValueError(f"Failed to parse TOML configuration file '{config_file}': {e}")
+    
+    # Build configuration from TOML + environment variables
     schoology_config = SchoologyConfig(
         google_email=os.getenv('evan_google', ''),
         google_password=os.getenv('evan_google_pw', ''),
-        base_url=os.getenv('schoology_base_url', 'https://lvjusd.schoology.com/')
+        base_url=toml_config.get('schoology', {}).get('base_url', 'https://lvjusd.schoology.com/')
     )
     
     aws_config = AWSConfig(
         access_key_id=os.getenv('aws_key', ''),
         secret_access_key=os.getenv('aws_secret', ''),
-        region=os.getenv('aws_region', 'us-west-1'),
-        dynamodb_table_name=os.getenv('dynamodb_table_name', 'SchoologyGrades')
+        region=toml_config.get('aws', {}).get('region', 'us-west-1'),
+        dynamodb_table_name=toml_config.get('aws', {}).get('dynamodb_table_name', 'SchoologyGrades')
     )
     
     notification_config = NotificationConfig(
         pushover_token=os.getenv('pushover_token'),
         pushover_user_key=os.getenv('pushover_userkey'),
         gemini_api_key=os.getenv('gemini_key'),
-        email_enabled=os.getenv('email_enabled', 'true').lower() == 'true'
+        email_enabled=toml_config.get('notifications', {}).get('email_enabled', True)
     )
     
     app_config = AppConfig(
-        download_path=os.getenv('download_path', '.'),
-        data_directory=os.getenv('data_directory', 'data'),
-        log_level=os.getenv('log_level', 'INFO'),
-        cache_ttl_seconds=int(os.getenv('cache_ttl_seconds', '300')),
-        max_retries=int(os.getenv('max_retries', '3')),
-        retry_delay_seconds=int(os.getenv('retry_delay_seconds', '2'))
+        download_path=toml_config.get('app', {}).get('download_path', '.'),
+        data_directory=toml_config.get('app', {}).get('data_directory', 'data'),
+        log_level=toml_config.get('app', {}).get('log_level', 'INFO'),
+        cache_ttl_seconds=toml_config.get('app', {}).get('cache_ttl_seconds', 300),
+        max_retries=toml_config.get('app', {}).get('max_retries', 3),
+        retry_delay_seconds=toml_config.get('app', {}).get('retry_delay_seconds', 2)
     )
     
     return Config(
