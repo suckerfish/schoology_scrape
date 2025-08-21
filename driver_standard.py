@@ -1,5 +1,6 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
@@ -34,7 +35,27 @@ class SchoologyDriver:
         chrome_options.add_argument('--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36')
         # Use Chromium instead of Chrome for ARM64 compatibility
         chrome_options.binary_location = '/usr/bin/chromium'
-        self.driver = webdriver.Chrome(options=chrome_options)
+        
+        # Try to find the ChromeDriver service path for ARM64
+        import os
+        chromedriver_paths = [
+            '/usr/bin/chromedriver',
+            '/usr/lib/chromium-browser/chromedriver',
+            '/usr/bin/chromedriver-chromium'
+        ]
+        
+        chromedriver_path = None
+        for path in chromedriver_paths:
+            if os.path.exists(path):
+                chromedriver_path = path
+                break
+        
+        if chromedriver_path:
+            service = Service(chromedriver_path)
+            self.driver = webdriver.Chrome(service=service, options=chrome_options)
+        else:
+            # Fallback to letting Selenium find it automatically
+            self.driver = webdriver.Chrome(options=chrome_options)
 
     def login(self, url, email, password):
         self.driver.get(url)
