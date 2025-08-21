@@ -11,18 +11,18 @@ mkdir -p data logs
 
 # Build the Docker image
 echo "🔨 Building Docker image..."
-docker-compose build
+docker compose build
 
 # Test the image
 echo "🧪 Testing Docker image..."
 
-# Test 1: Check Chrome installation
-echo "  ✅ Testing Chrome installation..."
-docker-compose run --rm schoology-scraper google-chrome --version --headless --no-sandbox
+# Test 1: Check Chromium installation
+echo "  ✅ Testing Chromium installation..."
+docker compose run --rm schoology-scraper chromium --version --headless --no-sandbox
 
 # Test 2: Check Python dependencies
 echo "  ✅ Testing Python dependencies..."
-docker-compose run --rm schoology-scraper python -c "
+docker compose run --rm schoology-scraper python -c "
 import selenium
 import boto3
 import streamlit
@@ -33,7 +33,7 @@ print('✅ All Python dependencies loaded successfully')
 
 # Test 3: Check application can import
 echo "  ✅ Testing application imports..."
-docker-compose run --rm schoology-scraper python -c "
+docker compose run --rm schoology-scraper python -c "
 from pipeline.orchestrator import GradePipeline
 from pipeline.scraper import GradeScraper
 from shared.config import get_config
