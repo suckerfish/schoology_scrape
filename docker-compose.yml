@@ -23,8 +23,8 @@ services:
       - ./config.toml:/app/config.toml:ro
       - ./.env:/app/.env:ro
     
-    # Restart policy
-    restart: unless-stopped
+    # Restart policy removed - use external cron for scheduling
+    # restart: unless-stopped
     
     # Resource limits
     deploy:
