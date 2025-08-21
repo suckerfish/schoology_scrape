@@ -172,7 +172,7 @@ class GradeComparator:
                 detailed_changes.append({
                     'type': 'item_added',
                     'path': path,
-                    'value': diff['dictionary_item_added'][path]
+                    'value': 'New item added'  # Don't try to extract value from set
                 })
         
         # Process removals
@@ -181,7 +181,7 @@ class GradeComparator:
                 detailed_changes.append({
                     'type': 'item_removed',
                     'path': path,
-                    'value': diff['dictionary_item_removed'][path]
+                    'value': 'Item removed'  # Don't try to extract value from set
                 })
         
         return detailed_changes
