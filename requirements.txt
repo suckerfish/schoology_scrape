@@ -27,3 +27,4 @@ streamlit
 plotly
 deepdiff
 tomli
+absl-py

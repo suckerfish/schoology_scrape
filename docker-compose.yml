@@ -1,4 +1,4 @@
-version: '3.8'
+# Docker Compose format version is no longer required in v2
 
 services:
   schoology-scraper:
