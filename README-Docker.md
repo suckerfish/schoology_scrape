@@ -1,150 +1,122 @@
 # Schoology Grade Scraper - Docker Deployment
 
-This document explains how to run the Schoology Grade Scraper in Docker containers.
+**Containerized grade monitoring system for ARM64 and x86_64 platforms.**
 
 ## Quick Start
 
-1. **Build and run once:**
-   ```bash
-   docker-compose up --build
-   ```
-
-2. **For scheduled runs (every hour):**
-   ```bash
-   docker-compose --profile scheduler up --build
-   ```
-
-## Setup Requirements
-
-### 1. Create Required Directories
 ```bash
+# Clone and setup
+git clone https://github.com/yourusername/schoology_scrape.git
+cd schoology_scrape
+git checkout docker-containerization
+
+# Create required directories and permissions
 mkdir -p data logs
-```
+sudo chown -R 1000:1000 data logs
 
-### 2. Configuration Files
-Ensure these files exist in your project root:
-- `config.toml` - Application settings
-- `.env` - Credentials (Google, AWS, Pushover, Gemini keys)
+# Setup credentials
+cp .env.example .env
+# Edit .env with your credentials
 
-### 3. File Permissions
-```bash
-# Ensure the container user can write to data/logs directories
-chmod 755 data logs
-```
+# Build and test
+./docker-build.sh
 
-## Deployment Options
-
-### Option 1: One-Shot Execution
-Run the scraper once and exit:
-```bash
-docker-compose up
-```
-
-### Option 2: Scheduled Service
-Run continuously with hourly scraping:
-```bash
-docker-compose --profile scheduler up -d
-```
-
-### Option 3: External Cron Job
-Set up a cron job on your VPS:
-```bash
-# Add to crontab: run every hour at minute 0
-0 * * * * cd /path/to/schoology_scrape && docker-compose up --abort-on-container-exit
-```
-
-## Data Persistence
-
-The following directories are mounted as volumes:
-- `./data` → `/app/data` - Grade snapshots and JSON files
-- `./logs` → `/app/logs` - Application logs
-- `./config.toml` → `/app/config.toml` (read-only)
-- `./.env` → `/app/.env` (read-only)
-
-## Container Features
-
-### Security
-- Runs as non-root user (`scraper`)
-- No new privileges flag set
-- Resource limits configured
-- Read-only configuration mounts
-
-### Monitoring
-- Health check endpoint
-- Structured logging with rotation
-- Resource monitoring available via `docker stats`
-
-### Chrome/Selenium
-- Google Chrome stable pre-installed
-- All Chrome dependencies included
-- Headless mode with virtual display
-- Optimized for containerized environments
-
-## Troubleshooting
-
-### Check Container Status
-```bash
-docker-compose ps
-docker-compose logs
-```
-
-### Debug Chrome Issues
-```bash
-# Run container interactively
-docker-compose run --rm schoology-scraper bash
-
-# Test Chrome installation
-google-chrome --version --headless --no-sandbox
-```
-
-### Monitor Resources
-```bash
-docker stats schoology-scraper
-```
-
-### Clean Up
-```bash
-# Stop and remove containers
-docker-compose down
-
-# Remove images
-docker-compose down --rmi all
-
-# Clean up volumes (CAUTION: deletes data)
-docker-compose down -v
+# Run once
+docker compose run --rm schoology-scraper
 ```
 
 ## Production Deployment
 
-For production VPS deployment:
+### Daily Scheduling (Recommended)
+Set up automated daily runs with cron:
 
-1. **Use specific image tags:**
-   ```yaml
-   image: schoology-scraper:v1.0.0
-   ```
+```bash
+# Add to crontab (runs daily at 9pm)
+crontab -e
 
-2. **Configure log aggregation:**
-   ```yaml
-   logging:
-     driver: syslog
-     options:
-       syslog-address: "tcp://your-log-server:514"
-   ```
+# Add this line:
+0 21 * * * cd /path/to/schoology_scrape && docker compose run --rm schoology-scraper
+```
 
-3. **Set up monitoring:**
-   - Container health checks
-   - Log monitoring for errors
-   - Resource usage alerts
+### Alternative: Continuous Service
+For hourly monitoring:
+```bash
+docker compose --profile scheduler up -d
+```
 
-4. **Backup strategy:**
-   - Regular backup of `./data` directory
-   - Configuration file backups
-   - Database snapshots (DynamoDB)
+## Key Features
 
-## Environment Variables
+### ARM64 Support
+- **Chromium-based**: Native ARM64 support (no Chrome compatibility issues)
+- **Automatic driver detection**: Finds ChromeDriver in standard Debian/Ubuntu paths
+- **Tested on**: Ampere/Graviton ARM64 VPS instances
 
-All sensitive configuration is handled via `.env` file:
-- `evan_google` / `evan_google_pw` - Google credentials
-- `aws_key` / `aws_secret` - AWS DynamoDB access
-- `pushover_token` / `pushover_userkey` - Notifications
-- `gemini_key` - AI analysis API key
+### Security & Reliability
+- **Non-root execution**: Container runs as UID 1000 user
+- **Resource limits**: Memory and CPU constraints
+- **Comprehensive error handling**: Retry logic with exponential backoff
+- **Dual storage**: Local JSON + AWS DynamoDB
+
+### Data Persistence
+All data persists across container restarts:
+- `./data/` - Grade snapshots and JSON files
+- `./logs/` - Application logs
+- Configuration files mounted read-only
+
+## Configuration
+
+### Required Files
+- `.env` - Credentials (copy from `.env.example`)
+- `config.toml` - Application settings (pre-configured)
+
+### Environment Variables
+```bash
+# Google OAuth (for Schoology login)
+evan_google=your-email@gmail.com
+evan_google_pw=your-password
+
+# AWS DynamoDB
+aws_key=your-access-key
+aws_secret=your-secret-key
+
+# Notifications (optional)
+pushover_token=your-token
+pushover_userkey=your-user-key
+gemini_key=your-api-key
+```
+
+## Troubleshooting
+
+### Permission Issues
+```bash
+# Fix volume mount permissions
+sudo chown -R 1000:1000 data logs
+```
+
+### Debug Container
+```bash
+# Interactive shell
+docker compose run --rm schoology-scraper bash
+
+# Test browser
+chromium --version --headless --no-sandbox
+```
+
+### View Logs
+```bash
+# Real-time logs
+docker compose logs -f
+
+# Check specific run
+ls -la logs/
+```
+
+## Architecture
+
+- **Selenium WebDriver**: Chromium + ChromeDriver for ARM64/x86_64
+- **Multi-provider notifications**: Pushover, Email, Gemini AI analysis
+- **Plugin-based architecture**: Extensible notification system
+- **Change detection**: DeepDiff-based grade comparison
+- **Cloud storage**: AWS DynamoDB for historical data
+
+Built for reliable, automated grade monitoring on modern VPS platforms.

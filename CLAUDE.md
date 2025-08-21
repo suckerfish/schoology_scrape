@@ -39,12 +39,24 @@ The system follows a **Phase 3 modular pipeline architecture** with clean separa
 
 ## Common Commands
 
-### Development
+### Docker Deployment (Primary Method)
+```bash
+# Build and test
+./docker-build.sh
+
+# Run once
+docker compose run --rm schoology-scraper
+
+# Daily cron (production)
+0 21 * * * cd /path/to/project && docker compose run --rm schoology-scraper
+```
+
+### Local Development (Legacy)
 ```bash
 # Install dependencies (use uv for package management)
 uv pip install -r requirements.txt
 
-# Run main scraper (typically scheduled)
+# Run main scraper
 python main.py
 
 # Launch Streamlit dashboard
@@ -62,12 +74,12 @@ Each snapshot is timestamped and stored both locally (JSON) and in DynamoDB for 
 
 ## Key Implementation Notes
 
-- **Web Scraping**: Uses standard Selenium WebDriver with OAuth flow handling for Google authentication
+- **Containerized Deployment**: Docker-first architecture with ARM64/x86_64 support using Chromium
+- **Web Scraping**: Standard Selenium WebDriver with OAuth flow handling for Google authentication
 - **Change Detection**: DeepDiff compares snapshots to trigger notifications only on actual changes
 - **Plugin Architecture**: Notification providers use abstract interfaces for easy extensibility
 - **Error Handling**: Comprehensive retry logic with exponential backoff and circuit breaker patterns
-- **Hierarchical Data**: Complex nested structure requires careful parsing and display logic
-- **Historical Tracking**: Immutable snapshots enable trend analysis and change attribution
+- **Dual Storage**: Local JSON files + AWS DynamoDB for redundancy and historical tracking
 - **Multi-Modal UI**: Dashboard supports timeline navigation, filtering, and detailed assignment views
 
 ## Streamlit Pages
@@ -83,19 +95,14 @@ Each snapshot is timestamped and stored both locally (JSON) and in DynamoDB for 
 **IMPORTANT**: All optimizations and architectural changes require explicit user approval before implementation. Do not implement any optimization items autonomously, even if they appear in TODO lists or analysis. Always request specific permission for each optimization task before proceeding.
 
 ### Implementation Status
-- ✅ **COMPLETED Phase 1**: Decoupled Streamlit viewer from scraper components
-- ✅ **COMPLETED Phase 2**: Service layer abstraction and centralized configuration management  
-- ✅ **COMPLETED Phase 3**: Pipeline refactoring with plugin-based notifications and error handling
-- ✅ **COMPLETED Conditional Storage**: Restored logic to only save data when changes are detected
+- ✅ **COMPLETED**: Full Phase 3 modular pipeline architecture
+- ✅ **COMPLETED**: Docker containerization with ARM64 support
+- ✅ **COMPLETED**: Plugin-based notifications (Pushover, Email, Gemini)
+- ✅ **COMPLETED**: Dual storage (local JSON + DynamoDB)
+- ✅ **COMPLETED**: Production deployment with cron scheduling
 
-### Architecture Evolution
-- ✅ **Plugin-Based Notifications**: `notifications/` directory with abstract providers (Pushover, Email, Gemini)
-- ✅ **Separated Pipeline**: `pipeline/` directory with focused components (scraper, comparator, notifier, orchestrator)
-- ✅ **Error Handling**: Comprehensive retry logic, circuit breakers, and severity-based error tracking
-- ✅ **Configuration Management**: Hybrid TOML + .env approach with structured dataclasses
-- ✅ **Testing Framework**: `test_pipeline.py` validates all components end-to-end
-- ✅ **Conditional Storage**: Enhanced orchestrator with configurable storage behavior (`config.toml` storage section)
-
-### Legacy Cleanup Opportunities  
-- Remove `undetected-chromedriver==3.5.4` from requirements.txt (no longer used)
-- Archive old backup files after successful Phase 3 operation
+### Recent Improvements
+- ✅ **ARM64 Compatibility**: Chromium-based browser stack for ARM64/x86_64 VPS deployment
+- ✅ **Container Security**: Non-root execution with proper volume permissions
+- ✅ **Automatic Scheduling**: Daily cron job setup for production monitoring
+- ✅ **Error Recovery**: Robust driver detection and fallback mechanisms
