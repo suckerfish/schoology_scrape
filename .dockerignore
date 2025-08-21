@@ -1,0 +1,64 @@
+# Git files
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs and data (will be mounted as volumes)
+*.log
+logs/
+data/
+
+# Temporary files
+debug_*.py
+debug_*.json
+*_test.py
+test_*.py
+simple_test.py
+final_test_log.txt
+scrape_log.txt
+
+# Documentation
+*.md
+README*
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
