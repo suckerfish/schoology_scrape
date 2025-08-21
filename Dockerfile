@@ -60,8 +60,8 @@ COPY . .
 # Create directories for data persistence
 RUN mkdir -p /app/data /app/logs
 
-# Create non-root user for security
-RUN useradd --create-home --shell /bin/bash scraper \
+# Create non-root user for security (UID 1000 matches most Ubuntu users)
+RUN useradd --create-home --shell /bin/bash --uid 1000 scraper \
     && chown -R scraper:scraper /app
 
 # Switch to non-root user
