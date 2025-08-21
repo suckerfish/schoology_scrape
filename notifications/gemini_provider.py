@@ -19,7 +19,7 @@ class GeminiProvider(NotificationProvider):
         if self.is_available():
             try:
                 genai.configure(api_key=self.config['api_key'])
-                self.llm_model = genai.GenerativeModel('gemini-2.0-flash')
+                self.llm_model = genai.GenerativeModel('gemini-2.5-flash')
             except Exception as e:
                 self.logger.error(f"Failed to initialize Gemini model: {e}")
     
@@ -79,18 +79,18 @@ class GeminiProvider(NotificationProvider):
     def _prepare_analysis_prompt(self, message: NotificationMessage) -> str:
         """Prepare the analysis prompt for Gemini"""
         base_prompt = f"""
-        Analyze the following grade change notification and provide insights:
+        Analyze the following grade change notification and report only the factual changes:
         
         Title: {message.title}
         Content: {message.content}
         
-        Please provide:
-        1. A summary of the key changes
-        2. Analysis of grade trends (improvements/declines)
-        3. Recommendations for the student
-        4. Any patterns or concerns you notice
+        Report ONLY:
+        1. New assignments that were added
+        2. Grade changes (old grade → new grade)
+        3. New comments or notes added
+        4. New categories or gradebook items added
         
-        Keep the analysis concise but insightful.
+        Do NOT provide recommendations, analysis, patterns, or insights. Just list the factual changes in a concise format.
         """
         
         # Add any additional context from metadata
