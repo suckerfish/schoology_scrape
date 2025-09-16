@@ -6,6 +6,13 @@
 # Logging configuration
 log_level = "INFO"
 
+[logging]
+# Diff and change logging configuration
+enable_change_logging = true
+enable_raw_diff_logging = false  # Debug only - can be large files
+change_log_retention_days = 90
+raw_diff_log_retention_days = 7
+
 # Performance settings
 cache_ttl_seconds = 300  # 5 minutes
 max_retries = 3

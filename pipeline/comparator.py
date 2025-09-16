@@ -4,6 +4,8 @@ from typing import Dict, Any, Optional, List
 from pathlib import Path
 from deepdiff import DeepDiff
 from dynamodb_manager import DynamoDBManager
+from shared.config import get_config
+from shared.diff_logger import DiffLogger
 
 class GradeComparator:
     """Handles change detection logic using DeepDiff"""
@@ -11,6 +13,8 @@ class GradeComparator:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.data_service = DynamoDBManager()
+        self.config = get_config()
+        self.diff_logger = DiffLogger(self.config)
     
     def detect_changes(self, new_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
@@ -96,6 +100,8 @@ class GradeComparator:
             if diff:
                 self.logger.info(f"Changes detected compared to {latest_file}")
                 changes = self._process_changes(diff, latest_data, new_data)
+                # Add comparison file info for logging
+                changes['comparison_files'] = [str(latest_file)]
                 return changes
             else:
                 self.logger.info("No changes detected compared to latest file")
@@ -108,24 +114,35 @@ class GradeComparator:
     def _process_changes(self, diff: DeepDiff, old_data: Dict[str, Any], new_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process DeepDiff output into a structured change report
-        
+
         Args:
             diff: DeepDiff result
             old_data: Previous data
             new_data: New data
-            
+
         Returns:
             Dict containing processed change information
         """
+        detailed_changes = self._extract_detailed_changes(diff)
+
         changes = {
             'type': 'update',
             'summary': self._generate_change_summary(diff),
-            'detailed_changes': self._extract_detailed_changes(diff),
+            'detailed_changes': detailed_changes,
             'diff_raw': diff,
             'old_data': old_data,
             'new_data': new_data
         }
-        
+
+        # Log raw diff for debugging (if enabled)
+        self.diff_logger.log_raw_diff(
+            raw_diff=diff,
+            detailed_changes=detailed_changes,
+            old_data_summary=self._summarize_data(old_data),
+            new_data_summary=self._summarize_data(new_data),
+            comparison_files=changes.get('comparison_files', [])
+        )
+
         return changes
     
     def _generate_change_summary(self, diff: DeepDiff) -> str:
@@ -215,5 +232,47 @@ class GradeComparator:
             
             if len(detailed_changes) > 10:
                 message += f"• ... and {len(detailed_changes) - 10} more changes\n"
-        
+
         return message
+
+    def _summarize_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Generate a summary of grade data for logging context.
+
+        Args:
+            data: Grade data to summarize
+
+        Returns:
+            Dict containing data summary
+        """
+        if not data:
+            return {"total_courses": 0, "total_assignments": 0}
+
+        try:
+            total_courses = len(data)
+            total_assignments = 0
+            course_names = []
+
+            for course_name, course_data in data.items():
+                course_names.append(course_name)
+                if isinstance(course_data, dict) and 'periods' in course_data:
+                    for period_name, period_data in course_data['periods'].items():
+                        if isinstance(period_data, dict) and 'categories' in period_data:
+                            for category_name, category_data in period_data['categories'].items():
+                                if isinstance(category_data, dict) and 'assignments' in category_data:
+                                    assignments = category_data['assignments']
+                                    if isinstance(assignments, list):
+                                        total_assignments += len(assignments)
+
+            return {
+                "total_courses": total_courses,
+                "total_assignments": total_assignments,
+                "course_names": course_names[:5],  # First 5 course names for context
+                "has_more_courses": total_courses > 5
+            }
+        except Exception as e:
+            return {
+                "error": f"Failed to summarize data: {e}",
+                "total_courses": len(data) if isinstance(data, dict) else 0,
+                "total_assignments": 0
+            }

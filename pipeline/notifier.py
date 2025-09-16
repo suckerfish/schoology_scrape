@@ -56,20 +56,21 @@ class GradeNotifier:
             self.logger.error(f"Failed to initialize notification manager: {e}")
             return None
     
-    def send_grade_change_notification(self, changes: Dict[str, Any], formatted_message: str) -> bool:
+    def send_grade_change_notification(self, changes: Dict[str, Any], formatted_message: str) -> tuple[bool, Dict[str, bool]]:
         """
         Send notification about grade changes
         
         Args:
             changes: Raw change data from comparator
             formatted_message: Human-readable message
-            
+
         Returns:
-            bool: True if at least one notification was sent successfully
+            tuple: (success_bool, results_dict) where success_bool is True if at least one
+                   notification was sent successfully, and results_dict contains per-provider results
         """
         if not self.notification_manager:
             self.logger.warning("No notification manager available")
-            return False
+            return False, {}
         
         try:
             # Prepare metadata for AI analysis
@@ -100,11 +101,11 @@ class GradeNotifier:
             if failed_providers:
                 self.logger.warning(f"Notifications failed via: {', '.join(failed_providers)}")
             
-            return len(successful_providers) > 0
-            
+            return len(successful_providers) > 0, results
+
         except Exception as e:
             self.logger.error(f"Error sending grade change notification: {e}")
-            return False
+            return False, {}
     
     def send_error_notification(self, error_message: str, error_details: Optional[str] = None) -> bool:
         """

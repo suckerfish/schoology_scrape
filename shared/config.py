@@ -61,6 +61,15 @@ class StorageConfig:
 
 
 @dataclass
+class LoggingConfig:
+    """Logging behavior configuration."""
+    enable_change_logging: bool = True
+    enable_raw_diff_logging: bool = False  # Debug only - can generate large files
+    change_log_retention_days: int = 90
+    raw_diff_log_retention_days: int = 7
+
+
+@dataclass
 class Config:
     """Master configuration container."""
     schoology: SchoologyConfig
@@ -68,6 +77,7 @@ class Config:
     notifications: NotificationConfig
     app: AppConfig
     storage: StorageConfig
+    logging: LoggingConfig
     
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -121,6 +131,12 @@ class Config:
             "storage": {
                 "conditional_save": self.storage.conditional_save,
                 "force_save_on_error": self.storage.force_save_on_error,
+            },
+            "logging": {
+                "enable_change_logging": self.logging.enable_change_logging,
+                "enable_raw_diff_logging": self.logging.enable_raw_diff_logging,
+                "change_log_retention_days": self.logging.change_log_retention_days,
+                "raw_diff_log_retention_days": self.logging.raw_diff_log_retention_days,
             }
         }
 
@@ -189,13 +205,21 @@ def load_config(env_file: Optional[str] = None, config_file: str = "config.toml"
         conditional_save=toml_config.get('storage', {}).get('conditional_save', True),
         force_save_on_error=toml_config.get('storage', {}).get('force_save_on_error', True)
     )
-    
+
+    logging_config = LoggingConfig(
+        enable_change_logging=toml_config.get('logging', {}).get('enable_change_logging', True),
+        enable_raw_diff_logging=toml_config.get('logging', {}).get('enable_raw_diff_logging', False),
+        change_log_retention_days=toml_config.get('logging', {}).get('change_log_retention_days', 90),
+        raw_diff_log_retention_days=toml_config.get('logging', {}).get('raw_diff_log_retention_days', 7)
+    )
+
     return Config(
         schoology=schoology_config,
         aws=aws_config,
         notifications=notification_config,
         app=app_config,
-        storage=storage_config
+        storage=storage_config,
+        logging=logging_config
     )
 
 

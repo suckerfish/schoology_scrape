@@ -8,6 +8,7 @@ from .comparator import GradeComparator
 from .notifier import GradeNotifier
 from dynamodb_manager import DynamoDBManager
 from shared.config import get_config
+from shared.diff_logger import DiffLogger
 
 class GradePipeline:
     """Main pipeline orchestrator that coordinates scraping, comparison, storage, and notifications"""
@@ -21,6 +22,7 @@ class GradePipeline:
         self.comparator = GradeComparator()
         self.notifier = GradeNotifier()
         self.data_service = DynamoDBManager()
+        self.diff_logger = DiffLogger(self.config)
         
         # Ensure data directory exists
         self.data_dir = Path('data')
@@ -76,7 +78,13 @@ class GradePipeline:
                 status_message = f"Grade monitoring completed successfully. No changes detected. Duration: {pipeline_duration}"
             
             self.notifier.send_status_notification(status_message, success=True)
-            
+
+            # Clean up old log files periodically
+            try:
+                self.diff_logger.cleanup_old_logs()
+            except Exception as cleanup_error:
+                self.logger.warning(f"Failed to clean up old logs: {cleanup_error}")
+
             return True
             
         except Exception as e:
@@ -234,17 +242,25 @@ class GradePipeline:
         try:
             # Format changes for notification
             formatted_message = self.comparator.format_changes_for_notification(changes)
-            
+
             # Send notification
-            notification_success = self.notifier.send_grade_change_notification(changes, formatted_message)
-            
+            notification_success, notification_results = self.notifier.send_grade_change_notification(changes, formatted_message)
+
+            # Log structured change information
+            self.diff_logger.log_grade_changes(
+                changes=changes,
+                formatted_message=formatted_message,
+                notification_results=notification_results,
+                comparison_files=changes.get('comparison_files', [])
+            )
+
             if notification_success:
                 self.logger.info("Notifications sent successfully")
             else:
                 self.logger.warning("Failed to send notifications")
-            
+
             return notification_success
-            
+
         except Exception as e:
             self.logger.error(f"Error sending notifications: {e}")
             return False
