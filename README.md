@@ -64,6 +64,55 @@ Phase 3 implements comprehensive pipeline refactoring with plugin-based notifica
 - Detailed status reporting and logging
 - Graceful failure handling with notifications
 
+## Structured Diff Logging
+
+The system now includes comprehensive logging of grade changes and raw diffs for analysis and fine-tuning:
+
+### Log Files
+- **`logs/grade_changes.log`** - Structured change tracking (JSON format)
+- **`logs/raw_diffs.log`** - Debug-level raw diff data (when enabled)
+
+### Configuration
+```toml
+[logging]
+enable_change_logging = true          # Production ready
+enable_raw_diff_logging = false       # Debug only - can generate large files
+change_log_retention_days = 90        # Long-term change history
+raw_diff_log_retention_days = 7       # Short-term debug data
+```
+
+### Change Log Format
+Each change detection creates a structured JSON entry:
+```json
+{
+  "timestamp": "2025-09-15T20:09:22.754633",
+  "change_type": "update",
+  "summary": "2 value(s) changed, 1 list item(s) added",
+  "formatted_message": "Grade changes detected: 2 value(s) changed...",
+  "notification_results": {"pushover": true, "email": true, "gemini": false},
+  "change_count": 2,
+  "priority": "normal",
+  "comparison_files": ["data_20250913.json", "data_20250915.json"],
+  "metadata": {
+    "has_grade_changes": true,
+    "has_new_assignments": false,
+    "has_removed_items": false
+  }
+}
+```
+
+### Features
+- **Structured Format**: JSON entries for easy parsing and analysis
+- **Notification Tracking**: Per-provider success/failure results
+- **Change Metadata**: Classification of change types for prioritization
+- **Automatic Cleanup**: Configurable retention periods prevent disk bloat
+- **Debug Mode**: Optional raw DeepDiff output for troubleshooting
+
+### Testing
+```bash
+python test_diff_logging.py
+```
+
 ## Configuration
 
 The system uses the existing hybrid TOML + .env configuration approach with enhancements for notification providers:
@@ -170,7 +219,16 @@ pipeline/
 ├── orchestrator.py
 └── error_handling.py
 
+shared/
+├── config.py (enhanced)
+└── diff_logger.py (new)
+
+logs/
+├── grade_changes.log (auto-generated)
+└── raw_diffs.log (auto-generated, configurable)
+
 test_pipeline.py
+test_diff_logging.py (new)
 PHASE3_README.md
 ```
 
@@ -185,14 +243,24 @@ The `test_pipeline.py` script validates:
 5. Error handling system
 6. End-to-end workflow (without actual scraping)
 
+The `test_diff_logging.py` script demonstrates:
+
+1. Structured change logging functionality
+2. JSON log format and content
+3. Notification result tracking
+4. Change metadata classification
+5. Raw diff logging (when enabled)
+
 ## Benefits Achieved
 
 1. **Modularity**: Clear separation of concerns
-2. **Testability**: Each component can be tested independently  
+2. **Testability**: Each component can be tested independently
 3. **Reliability**: Comprehensive error handling and retry logic
 4. **Extensibility**: Easy to add new notification providers
 5. **Maintainability**: Focused modules with single responsibilities
 6. **Observability**: Enhanced logging and error tracking
+7. **Analytics**: Structured diff logging for data-driven optimization
+8. **Debugging**: Comprehensive change tracking with notification result correlation
 
 ## ✅ Validation Results
 

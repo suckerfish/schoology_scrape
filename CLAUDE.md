@@ -36,6 +36,39 @@ The system follows a **Phase 3 modular pipeline architecture** with clean separa
 - Schoology settings: base URL
 - AWS settings: region, DynamoDB table name
 - Notification preferences: email enabled flag
+- Logging settings: diff logging, retention periods
+
+## Structured Diff Logging
+
+The system provides comprehensive logging of grade changes for analysis and fine-tuning:
+
+**Log Files:**
+- `logs/grade_changes.log` - Structured JSON change tracking
+- `logs/raw_diffs.log` - Debug-level DeepDiff output (configurable)
+
+**Configuration in `config.toml`:**
+```toml
+[logging]
+enable_change_logging = true          # Always enabled for production
+enable_raw_diff_logging = false       # Debug only - can be large
+change_log_retention_days = 90        # Historical change analysis
+raw_diff_log_retention_days = 7       # Short-term troubleshooting
+```
+
+**Log Entry Structure:**
+- Timestamp and change type classification
+- Human-readable summary and formatted notification message
+- Per-provider notification success/failure tracking
+- Change metadata (grade changes, new assignments, removals)
+- Comparison file references for audit trail
+- Priority level for notification importance
+
+**Benefits:**
+- Analyze notification effectiveness and delivery patterns
+- Fine-tune change detection and message formatting
+- Debug notification failures with full context
+- Track system reliability and performance over time
+- Enable data-driven optimization of diff processing
 
 ## Common Commands
 
@@ -81,6 +114,7 @@ Each snapshot is timestamped and stored both locally (JSON) and in DynamoDB for 
 - **Error Handling**: Comprehensive retry logic with exponential backoff and circuit breaker patterns
 - **Dual Storage**: Local JSON files + AWS DynamoDB for redundancy and historical tracking
 - **Multi-Modal UI**: Dashboard supports timeline navigation, filtering, and detailed assignment views
+- **Structured Logging**: Comprehensive diff logging with JSON format for change analysis and notification tracking
 
 ## Streamlit Pages
 
@@ -106,3 +140,4 @@ Each snapshot is timestamped and stored both locally (JSON) and in DynamoDB for 
 - ✅ **Container Security**: Non-root execution with proper volume permissions
 - ✅ **Automatic Scheduling**: Daily cron job setup for production monitoring
 - ✅ **Error Recovery**: Robust driver detection and fallback mechanisms
+- ✅ **Structured Diff Logging**: Comprehensive change tracking with JSON format for analysis and fine-tuning
