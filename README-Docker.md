@@ -21,27 +21,34 @@ cp .env.example .env
 # Build and test
 ./docker-build.sh
 
-# Run once
-docker compose run --rm schoology-scraper
+# Test single run
+docker compose -f compose.yaml run --rm --profile manual schoology-scraper
 ```
 
 ## Production Deployment
 
-### Daily Scheduling (Recommended)
-Set up automated daily runs with cron:
+### Continuous Monitoring (Default)
+For automated scheduling with configurable times:
 
+```bash
+# Start persistent monitoring (uses SCRAPE_TIMES from .env)
+docker compose -f compose.yaml up -d
+
+# Check logs
+docker compose -f compose.yaml logs -f
+
+# Stop monitoring
+docker compose -f compose.yaml down
+```
+
+### Alternative: External Cron Scheduling
+For external cron control:
 ```bash
 # Add to crontab (runs daily at 9pm)
 crontab -e
 
 # Add this line:
-0 21 * * * cd /path/to/schoology_scrape && docker compose run --rm schoology-scraper
-```
-
-### Alternative: Continuous Service
-For hourly monitoring:
-```bash
-docker compose --profile scheduler up -d
+0 21 * * * cd /path/to/schoology_scrape && docker compose -f compose.yaml run --rm --profile manual schoology-scraper
 ```
 
 ## Key Features

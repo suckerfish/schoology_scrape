@@ -40,6 +40,9 @@ class NotificationConfig:
     pushover_user_key: Optional[str] = None
     gemini_api_key: Optional[str] = None
     email_enabled: bool = True
+    email_sender: Optional[str] = None
+    email_password: Optional[str] = None
+    email_receiver: Optional[str] = None
 
 
 @dataclass
@@ -189,7 +192,10 @@ def load_config(env_file: Optional[str] = None, config_file: str = "config.toml"
         pushover_token=os.getenv('pushover_token'),
         pushover_user_key=os.getenv('pushover_userkey'),
         gemini_api_key=os.getenv('gemini_key'),
-        email_enabled=toml_config.get('notifications', {}).get('email_enabled', True)
+        email_enabled=toml_config.get('notifications', {}).get('email_enabled', True),
+        email_sender=os.getenv('email_sender'),
+        email_password=os.getenv('email_password'),
+        email_receiver=os.getenv('email_receiver')
     )
     
     app_config = AppConfig(

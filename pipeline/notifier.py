@@ -27,14 +27,17 @@ class GradeNotifier:
                 }
             
             # Email configuration
-            if self.config.notifications.email_enabled:
+            if (self.config.notifications.email_enabled and
+                self.config.notifications.email_sender and
+                self.config.notifications.email_password and
+                self.config.notifications.email_receiver):
                 notification_config['email'] = {
                     'enabled': True,
                     'smtp_server': 'smtp.gmail.com',
                     'smtp_port': 587,
-                    'sender_email': 'cyncial@gmail.com',
-                    'sender_password': 'cwvostfpjsoqlkgo',  # App password
-                    'receiver_email': 'cynical@gmail.com'
+                    'sender_email': self.config.notifications.email_sender,
+                    'sender_password': self.config.notifications.email_password,
+                    'receiver_email': self.config.notifications.email_receiver
                 }
             
             # Gemini configuration

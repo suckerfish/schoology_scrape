@@ -1,0 +1,169 @@
+# Modern Docker Compose specification
+# https://docs.docker.com/compose/compose-file/
+
+name: schoology-grade-scraper
+
+services:
+  schoology-scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      pull: true
+    image: schoology-scraper:latest
+    container_name: schoology-scraper
+
+    # Environment variables
+    environment:
+      DISPLAY: ":99"
+      PYTHONUNBUFFERED: "1"
+
+    # Volume mounts for data persistence and configuration
+    volumes:
+      # Data persistence (adjust paths for your deployment)
+      - type: bind
+        source: ./data
+        target: /app/data
+      - type: bind
+        source: ./logs
+        target: /app/logs
+
+      # Configuration (read-only)
+      - type: bind
+        source: ./config.toml
+        target: /app/config.toml
+        read_only: true
+      - type: bind
+        source: ./.env
+        target: /app/.env
+        read_only: true
+
+    # One-shot service for manual runs or external cron scheduling
+    # Only starts when explicitly called or with --profile manual
+    profiles:
+      - manual
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+    # Health check
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import sys; sys.exit(0)'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+      start_interval: 5s
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+    # Modern security configuration
+    security_opt:
+      - no-new-privileges:true
+    read_only: false  # Needs write access for logs/data
+    user: "1000:1000"  # Non-root user
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+
+    # Network configuration
+    networks:
+      - default
+
+  schoology-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      pull: true
+    image: schoology-scraper:latest
+    container_name: schoology-scheduler
+
+    # Override command for timestamp-based scheduling
+    command: python scheduler.py
+
+    environment:
+      DISPLAY: ":99"
+      PYTHONUNBUFFERED: "1"
+
+    volumes:
+      # Data persistence (adjust paths for your deployment)
+      - type: bind
+        source: ./data
+        target: /app/data
+      - type: bind
+        source: ./logs
+        target: /app/logs
+      - type: bind
+        source: ./config.toml
+        target: /app/config.toml
+        read_only: true
+      - type: bind
+        source: ./.env
+        target: /app/.env
+        read_only: true
+
+    restart: unless-stopped
+
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+    # Health check for scheduler
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'python scheduler.py' || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+      start_interval: 5s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+    # Modern security configuration
+    security_opt:
+      - no-new-privileges:true
+    read_only: false  # Needs write access for logs/data
+    user: "1000:1000"  # Non-root user
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+
+    # This service is enabled by default for continuous monitoring
+    # To disable and use cron instead, run: docker compose --profile manual up -d
+    networks:
+      - default
+
+# Modern network configuration
+networks:
+  default:
+    name: schoology-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
