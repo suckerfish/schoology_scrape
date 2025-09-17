@@ -5,6 +5,9 @@
 # Python
 __pycache__/
 *.py[cod]
+*.pyc
+*.pyo
+*.pyd
 *$py.class
 *.so
 .Python
@@ -53,6 +56,12 @@ test_*.py
 simple_test.py
 final_test_log.txt
 scrape_log.txt
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
 
 # Documentation
 *.md

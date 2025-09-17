@@ -2,8 +2,27 @@
 .env
 .idea
 data
-__pycache__
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 scrape.log
 *.log
 .DS_Store
 outputs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# IDE files
+*.swp
+*.swo
+.vscode/
