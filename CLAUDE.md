@@ -27,9 +27,11 @@ The system follows a **Phase 3 modular pipeline architecture** with clean separa
 
 **Required environment variables in `.env`**:
 - `evan_google`/`evan_google_pw` - Google credentials for Schoology login
-- `aws_key`/`aws_secret` - AWS DynamoDB credentials  
+- `aws_key`/`aws_secret` - AWS DynamoDB credentials
 - `pushover_token`/`pushover_userkey` - Push notification credentials
 - `gemini_key` - Google Gemini AI API key
+- `email_sender`/`email_password`/`email_receiver` - Email notification credentials (optional)
+- `SCRAPE_TIMES` - Scheduled run times in 24-hour format, comma-separated (e.g., "08:00,20:00")
 
 **Application settings in `config.toml`**:
 - App settings: log level, cache TTL, retry configuration
@@ -77,11 +79,20 @@ raw_diff_log_retention_days = 7       # Short-term troubleshooting
 # Build and test
 ./docker-build.sh
 
-# Run once
-docker compose run --rm schoology-scraper
+# Continuous monitoring with timestamp scheduling (default)
+docker compose up -d
 
-# Daily cron (production)
-0 21 * * * cd /path/to/project && docker compose run --rm schoology-scraper
+# Check logs
+docker compose logs -f
+
+# Stop monitoring
+docker compose down
+
+# Manual single run
+docker compose run --rm --profile manual schoology-scraper
+
+# External cron (alternative)
+0 21 * * * cd /path/to/project && docker compose run --rm --profile manual schoology-scraper
 ```
 
 ### Local Development (Legacy)
@@ -107,7 +118,9 @@ Each snapshot is timestamped and stored both locally (JSON) and in DynamoDB for 
 
 ## Key Implementation Notes
 
-- **Containerized Deployment**: Docker-first architecture with ARM64/x86_64 support using Chromium
+- **Modern Docker Deployment**: Uses `compose.yaml` with timestamp-based scheduling and enhanced security
+- **Flexible Scheduling**: Configurable via `SCRAPE_TIMES` environment variable (e.g., "08:00,20:00" for 8am/8pm)
+- **Containerized Architecture**: ARM64/x86_64 support using Chromium with non-root user security
 - **Web Scraping**: Standard Selenium WebDriver with OAuth flow handling for Google authentication
 - **Change Detection**: DeepDiff compares snapshots to trigger notifications only on actual changes
 - **Plugin Architecture**: Notification providers use abstract interfaces for easy extensibility

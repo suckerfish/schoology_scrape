@@ -115,24 +115,64 @@ python test_diff_logging.py
 
 ## Configuration
 
-The system uses the existing hybrid TOML + .env configuration approach with enhancements for notification providers:
+The system uses a hybrid TOML + .env configuration approach:
 
-```python
-# Notification configuration is automatically built from:
-# - config.credentials.pushover_token/pushover_userkey
-# - config.credentials.gemini_key  
-# - config.notifications.email_enabled
+### Environment Variables (`.env`)
+```bash
+# Authentication
+evan_google=your-email@domain.com
+evan_google_pw=your-password
+
+# AWS DynamoDB
+aws_key=your-aws-access-key
+aws_secret=your-aws-secret-key
+
+# Notifications (optional)
+pushover_token=your-pushover-token
+pushover_userkey=your-pushover-userkey
+gemini_key=your-gemini-api-key
+email_sender=your-email@gmail.com
+email_password=your-app-password
+email_receiver=recipient@gmail.com
+
+# Scheduling
+SCRAPE_TIMES=08:00,20:00  # Run at 8am and 8pm daily
 ```
+
+### Application Settings (`config.toml`)
+- Cache settings, retry logic, logging preferences
+- AWS region and DynamoDB table configuration
+- Notification preferences and retention policies
 
 ## Usage
 
-### Standard Operation
+### Docker Deployment (Recommended)
 ```bash
-python main.py
+# Build container
+./docker-build.sh
+
+# Start continuous monitoring (default: 8am/8pm daily)
+docker compose up -d
+
+# Check logs
+docker compose logs -f
+
+# Stop monitoring
+docker compose down
+
+# Manual single run
+docker compose run --rm --profile manual schoology-scraper
 ```
 
-### Testing the Pipeline
+### Local Development
 ```bash
+# Install dependencies
+uv pip install -r requirements.txt
+
+# Run scraper
+python main.py
+
+# Test pipeline
 python test_pipeline.py
 ```
 
