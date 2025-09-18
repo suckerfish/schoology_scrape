@@ -10,6 +10,7 @@ services:
       dockerfile: Dockerfile
       pull: true
     image: schoology-scraper:latest
+    pull_policy: build
     container_name: schoology-scraper
 
     # Environment variables
@@ -90,6 +91,7 @@ services:
       dockerfile: Dockerfile
       pull: true
     image: schoology-scraper:latest
+    pull_policy: build
     container_name: schoology-scheduler
 
     # Override command for timestamp-based scheduling
