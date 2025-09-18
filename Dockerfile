@@ -27,7 +27,7 @@ WORKDIR /app
 # Create non-root user
 RUN groupadd --gid 1000 scraper \
     && useradd --uid 1000 --gid scraper --shell /bin/bash --create-home scraper \
-    && mkdir -p /app/{data,logs,cache} \
+    && mkdir -p /app/data /app/logs /app/cache \
     && chown -R scraper:scraper /app \
     && chmod 755 /app/logs
 
