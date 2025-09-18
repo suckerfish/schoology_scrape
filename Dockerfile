@@ -21,13 +21,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get autoremove -y \
     && apt-get autoclean
 
-# Create non-root user
-RUN groupadd --gid 1000 scraper \
-    && useradd --uid 1000 --gid scraper --shell /bin/bash --create-home scraper
-
 # Set up application directory
 WORKDIR /app
-RUN mkdir -p /app/{data,logs,cache} \
+
+# Create non-root user
+RUN groupadd --gid 1000 scraper \
+    && useradd --uid 1000 --gid scraper --shell /bin/bash --create-home scraper \
+    && mkdir -p /app/{data,logs,cache} \
     && chown -R scraper:scraper /app \
     && chmod 755 /app/logs
 
