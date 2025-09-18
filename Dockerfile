@@ -10,7 +10,7 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    wget curl unzip xvfb ca-certificates gnupg \
+    wget curl unzip xvfb ca-certificates gnupg gosu \
     chromium chromium-driver \
     fonts-liberation libasound2 libatk-bridge2.0-0 libatk1.0-0 \
     libatspi2.0-0 libcups2 libdbus-1-3 libdrm2 libgbm1 \
@@ -28,7 +28,8 @@ RUN groupadd --gid 1000 scraper \
 # Set up application directory
 WORKDIR /app
 RUN mkdir -p /app/{data,logs,cache} \
-    && chown -R scraper:scraper /app
+    && chown -R scraper:scraper /app \
+    && chmod 755 /app/logs
 
 # Copy requirements and install Python dependencies
 COPY --chown=scraper:scraper requirements.txt ./
@@ -38,8 +39,12 @@ RUN pip install --no-cache-dir --upgrade pip \
 # Copy application code
 COPY --chown=scraper:scraper . .
 
-# Switch to non-root user
-USER scraper:scraper
+# Copy and set up entrypoint script
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Set entrypoint
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 # Health check
 HEALTHCHECK --interval=60s --timeout=30s --start-period=120s --retries=3 \

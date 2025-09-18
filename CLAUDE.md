@@ -76,10 +76,9 @@ raw_diff_log_retention_days = 7       # Short-term troubleshooting
 
 ### Docker Deployment (Primary Method)
 ```bash
-# Build and test
-./docker-build.sh
-
-# Continuous monitoring with timestamp scheduling (default)
+# Build and deploy (fresh deployment - no manual permission setup needed)
+docker compose down
+docker compose build
 docker compose up -d
 
 # Check logs
@@ -151,6 +150,7 @@ Each snapshot is timestamped and stored both locally (JSON) and in DynamoDB for 
 ### Recent Improvements
 - ✅ **ARM64 Compatibility**: Chromium-based browser stack for ARM64/x86_64 VPS deployment
 - ✅ **Container Security**: Non-root execution with proper volume permissions
+- ✅ **Automatic Permission Handling**: Entrypoint script eliminates manual chown requirements for fresh deployments
 - ✅ **Automatic Scheduling**: Daily cron job setup for production monitoring
 - ✅ **Error Recovery**: Robust driver detection and fallback mechanisms
 - ✅ **Structured Diff Logging**: Comprehensive change tracking with JSON format for analysis and fine-tuning
