@@ -83,9 +83,15 @@ class GradeNotifier:
                 'change_type': changes.get('type', 'unknown')
             }
             
-            # Create notification message
+            # Create notification message with appropriate title
+            # Check if this is a combined notification (has status info)
+            if "--- Status ---" in formatted_message:
+                title = "Schoology Monitoring Complete - Changes Detected"
+            else:
+                title = "Schoology Grade Changes Detected"
+
             message = NotificationMessage(
-                title="Schoology Grade Changes Detected",
+                title=title,
                 content=formatted_message,
                 priority=self._determine_priority(changes),
                 metadata=metadata

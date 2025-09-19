@@ -58,26 +58,19 @@ class GradePipeline:
             if not save_success:
                 self.logger.warning("Failed to save grade data, but continuing pipeline")
             
-            # Step 4: Send notifications (only if changes detected)
-            if changes:
-                self.logger.info("Step 4: Sending notifications for detected changes")
-                notification_success = self._send_notifications(changes)
-                if not notification_success:
-                    self.logger.warning("Failed to send notifications")
-            else:
-                self.logger.info("Step 4: No changes detected, skipping notifications")
-            
-            # Pipeline completed successfully
+            # Step 4: Send combined status and change notifications
             pipeline_duration = datetime.datetime.now() - pipeline_start_time
             self.logger.info(f"Pipeline completed successfully in {pipeline_duration}")
-            
-            # Send success status notification (low priority)
+
             if changes:
-                status_message = f"Grade monitoring completed successfully. Changes detected and notifications sent. Duration: {pipeline_duration}"
+                self.logger.info("Step 4: Sending combined notification with changes and status")
+                notification_success = self._send_combined_notification(changes, pipeline_duration)
+                if not notification_success:
+                    self.logger.warning("Failed to send combined notification")
             else:
+                self.logger.info("Step 4: Sending status notification - no changes detected")
                 status_message = f"Grade monitoring completed successfully. No changes detected. Duration: {pipeline_duration}"
-            
-            self.notifier.send_status_notification(status_message, success=True)
+                self.notifier.send_status_notification(status_message, success=True)
 
             # Clean up old log files periodically
             try:
@@ -263,6 +256,47 @@ class GradePipeline:
 
         except Exception as e:
             self.logger.error(f"Error sending notifications: {e}")
+            return False
+
+    def _send_combined_notification(self, changes: Dict[str, Any], pipeline_duration) -> bool:
+        """
+        Send combined notification including both changes and status information
+
+        Args:
+            changes: Dictionary containing grade change information
+            pipeline_duration: How long the pipeline took to run
+
+        Returns:
+            bool: True if notification was sent successfully
+        """
+        try:
+            # Format the grade changes
+            formatted_message = self.comparator.format_changes_as_message(changes)
+
+            # Create enhanced status message that includes changes
+            status_info = f"Grade monitoring completed successfully. Duration: {pipeline_duration}"
+            combined_message = f"{formatted_message}\n\n--- Status ---\n{status_info}"
+
+            # Send combined notification with changes + status
+            notification_success, notification_results = self.notifier.send_grade_change_notification(changes, combined_message)
+
+            # Log structured change information
+            self.diff_logger.log_grade_changes(
+                changes=changes,
+                formatted_message=combined_message,
+                notification_results=notification_results,
+                comparison_files=changes.get('comparison_files', [])
+            )
+
+            if notification_success:
+                self.logger.info("Combined notification sent successfully")
+            else:
+                self.logger.warning("Failed to send combined notification")
+
+            return notification_success
+
+        except Exception as e:
+            self.logger.error(f"Error sending combined notification: {e}")
             return False
     
     def _handle_scraping_failure(self):
