@@ -79,18 +79,18 @@ class GeminiProvider(NotificationProvider):
     def _prepare_analysis_prompt(self, message: NotificationMessage) -> str:
         """Prepare the analysis prompt for Gemini"""
         base_prompt = f"""
-        Analyze the following grade change notification and report only the factual changes:
-        
+        State exactly what changed in the most natural way possible. Always include assignment names and key details but avoid unnecessary words.
+
         Title: {message.title}
         Content: {message.content}
-        
-        Report ONLY:
-        1. New assignments that were added
-        2. Grade changes (old grade → new grade)
-        3. New comments or notes added
-        4. New categories or gradebook items added
-        
-        Do NOT provide recommendations, analysis, patterns, or insights. Just list the factual changes in a concise format.
+
+        Examples:
+        - "'Bill Nye Atoms' assignment added to Science 7 (due 9/19/25 3:59pm, ungraded)"
+        - "Math test grade: 85/100 → 88/100, period grade now 91%"
+        - "Social Studies 'Map' due date corrected: 7/22/25 → 9/22/25 11:59pm"
+        - "Art project comment added: 'Great work on color theory!'"
+
+        Do NOT provide recommendations, analysis, patterns, or insights. Just state what changed factually.
         """
         
         # Add any additional context from metadata

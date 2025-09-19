@@ -1,334 +1,234 @@
-# Phase 3: Pipeline Refactoring - ✅ COMPLETED & TESTED
+# Schoology Grade Scraper
 
-## Overview
+An automated grade monitoring system that scrapes student grades from Schoology LMS, tracks changes over time, and provides intelligent notifications when grades are updated.
 
-Phase 3 implements comprehensive pipeline refactoring with plugin-based notifications, separated concerns, and robust error handling. The architecture now follows a clean separation of concerns with focused, testable components.
+> **Recommended Branch**: Use `docker-containerization` branch for the latest stable deployment with Docker support.
 
-## New Architecture
+## What It Does
 
-### 1. Plugin-Based Notification System
+- **Automated Grade Tracking**: Logs into Schoology via Google OAuth and extracts all course grades and assignments
+- **Change Detection**: Compares current grades with historical snapshots to detect new grades, assignment additions, and due date changes
+- **Smart Notifications**: Sends alerts via Pushover, email, and AI-generated summaries when changes are detected
+- **Historical Analysis**: Stores grade data locally and in AWS DynamoDB for trend analysis and reporting
+- **Web Dashboard**: Streamlit interface for visualizing grade history, trends, and detailed assignment information
 
-**Location**: `notifications/`
+## Key Features
 
-- **Base Interface**: `notifications/base.py` - Abstract `NotificationProvider` class
-- **Providers**: 
-  - `notifications/pushover_provider.py` - Pushover notifications
-  - `notifications/email_provider.py` - Email notifications  
-  - `notifications/gemini_provider.py` - AI analysis via Gemini
-- **Manager**: `notifications/manager.py` - Dynamic plugin loading and orchestration
+### Intelligent Monitoring
+- **Flexible Scheduling**: Configure exact run times (e.g., "8:00,20:00" for 8am and 8pm daily)
+- **Change Detection**: Uses DeepDiff to identify exactly what changed between grade snapshots
+- **Priority-Based Alerts**: Distinguishes between actual grade changes and administrative updates
 
-**Features**:
-- Standardized `NotificationMessage` format
-- Dynamic provider loading based on configuration
-- Gemini AI analysis with enhanced messages for other providers
-- Comprehensive error handling and logging
+### Multi-Channel Notifications
+- **Pushover**: Instant mobile notifications for grade changes
+- **Email**: Detailed grade reports sent to configured recipients
+- **AI Analysis**: Gemini AI provides natural language summaries of changes
+- **Structured Logging**: JSON-formatted change logs for analysis and debugging
 
-### 2. Separated Pipeline Components
+### Robust Architecture
+- **Plugin-Based Notifications**: Easy to add new notification providers
+- **Dual Storage**: Local JSON files + AWS DynamoDB for redundancy
+- **Comprehensive Error Handling**: Retry logic, circuit breakers, and graceful failure recovery
+- **Docker Deployment**: Containerized with ARM64/x86_64 support for VPS deployment
 
-**Location**: `pipeline/`
+## Quick Start
 
-- **Scraper**: `pipeline/scraper.py` - Pure data extraction with retry logic
-- **Comparator**: `pipeline/comparator.py` - Change detection using DeepDiff
-- **Notifier**: `pipeline/notifier.py` - Alert coordination and delivery
-- **Orchestrator**: `pipeline/orchestrator.py` - Main pipeline coordination
+### Prerequisites
+- Docker and Docker Compose
+- Google account with Schoology access
+- AWS account for DynamoDB (optional but recommended)
 
-**Benefits**:
-- Single responsibility principle
-- Independent testing capability
-- Clear data flow: scraper → comparator → storage → notifier
-- Modular error handling
+### Setup
+1. **Clone the repository**:
+   ```bash
+   git clone <repository-url>
+   cd schoology_scrape
+   git checkout docker-containerization
+   ```
 
-### 3. Comprehensive Error Handling
+2. **Configure environment variables** in `.env`:
+   ```bash
+   # Schoology credentials
+   evan_google=your-email@domain.com
+   evan_google_pw=your-password
 
-**Location**: `pipeline/error_handling.py`
+   # Scheduling (optional, defaults to 8am/8pm)
+   SCRAPE_TIMES=08:00,20:00
 
-**Features**:
-- Custom exception hierarchy (`PipelineError`, `ScrapingError`, etc.)
-- Retry decorators with configurable backoff strategies
-- Circuit breaker pattern for external services
-- Centralized error tracking and reporting
-- Severity-based logging and notifications
+   # AWS DynamoDB (optional)
+   aws_key=your-aws-access-key
+   aws_secret=your-aws-secret-key
 
-**Strategies**:
-- **Fixed Delay**: Constant retry intervals
-- **Linear Backoff**: Increasing delays (1s, 2s, 3s...)
-- **Exponential Backoff**: Exponential delays (1s, 2s, 4s, 8s...)
+   # Notifications (optional)
+   pushover_token=your-pushover-app-token
+   pushover_userkey=your-pushover-user-key
+   gemini_key=your-google-gemini-api-key
+   ```
 
-### 4. Enhanced Main Pipeline
+3. **Deploy with Docker**:
+   ```bash
+   # Build and start continuous monitoring
+   docker compose up -d
 
-**Location**: `main.py` (refactored), `pipeline/orchestrator.py`
+   # View logs
+   docker compose logs -f
 
-**Improvements**:
-- Clean orchestration with comprehensive error handling
-- Fallback mechanisms for each component
-- Detailed status reporting and logging
-- Graceful failure handling with notifications
-
-## Structured Diff Logging
-
-The system now includes comprehensive logging of grade changes and raw diffs for analysis and fine-tuning:
-
-### Log Files
-- **`logs/grade_changes.log`** - Structured change tracking (JSON format)
-- **`logs/raw_diffs.log`** - Debug-level raw diff data (when enabled)
-
-### Configuration
-```toml
-[logging]
-enable_change_logging = true          # Production ready
-enable_raw_diff_logging = false       # Debug only - can generate large files
-change_log_retention_days = 90        # Long-term change history
-raw_diff_log_retention_days = 7       # Short-term debug data
-```
-
-### Change Log Format
-Each change detection creates a structured JSON entry:
-```json
-{
-  "timestamp": "2025-09-15T20:09:22.754633",
-  "change_type": "update",
-  "summary": "2 value(s) changed, 1 list item(s) added",
-  "formatted_message": "Grade changes detected: 2 value(s) changed...",
-  "notification_results": {"pushover": true, "email": true, "gemini": false},
-  "change_count": 2,
-  "priority": "normal",
-  "comparison_files": ["data_20250913.json", "data_20250915.json"],
-  "metadata": {
-    "has_grade_changes": true,
-    "has_new_assignments": false,
-    "has_removed_items": false
-  }
-}
-```
-
-### Features
-- **Structured Format**: JSON entries for easy parsing and analysis
-- **Notification Tracking**: Per-provider success/failure results
-- **Change Metadata**: Classification of change types for prioritization
-- **Automatic Cleanup**: Configurable retention periods prevent disk bloat
-- **Debug Mode**: Optional raw DeepDiff output for troubleshooting
-
-### Testing
-```bash
-python test_diff_logging.py
-```
+   # Manual single run
+   docker compose run --rm --profile manual schoology-scraper
+   ```
 
 ## Configuration
 
-The system uses a hybrid TOML + .env configuration approach:
-
-### Environment Variables (`.env`)
+### Scheduling
+Set `SCRAPE_TIMES` environment variable with 24-hour format times:
 ```bash
-# Authentication
-evan_google=your-email@domain.com
-evan_google_pw=your-password
-
-# AWS DynamoDB
-aws_key=your-aws-access-key
-aws_secret=your-aws-secret-key
-
-# Notifications (optional)
-pushover_token=your-pushover-token
-pushover_userkey=your-pushover-userkey
-gemini_key=your-gemini-api-key
-email_sender=your-email@gmail.com
-email_password=your-app-password
-email_receiver=recipient@gmail.com
-
-# Scheduling
-SCRAPE_TIMES=08:00,20:00  # Run at 8am and 8pm daily
+SCRAPE_TIMES=08:00,20:00      # Twice daily
+SCRAPE_TIMES=21:00            # Once daily at 9 PM
+SCRAPE_TIMES=07:00,13:00,19:00 # Three times daily
 ```
 
-### Application Settings (`config.toml`)
-- Cache settings, retry logic, logging preferences
-- AWS region and DynamoDB table configuration
-- Notification preferences and retention policies
+### Application Settings
+Modify `config.toml` for:
+- Cache settings and retry logic
+- AWS DynamoDB configuration
+- Logging preferences and retention
+- Notification provider settings
 
-## Usage
+## Data Structure
 
-### Docker Deployment (Recommended)
-```bash
-# Build container
-./docker-build.sh
-
-# Start continuous monitoring (default: 8am/8pm daily)
-docker compose up -d
-
-# Check logs
-docker compose logs -f
-
-# Stop monitoring
-docker compose down
-
-# Manual single run
-docker compose run --rm --profile manual schoology-scraper
+Grades are organized hierarchically:
 ```
+Course → Periods → Categories → Assignments
+```
+
+Each assignment contains:
+- **Grade**: Current score (e.g., "88/100", "A-", "Not graded")
+- **Due Date**: Assignment deadline
+- **Comments**: Teacher feedback
+- **Title**: Assignment name
+
+## Web Dashboard
+
+Launch the Streamlit dashboard for interactive grade analysis:
+
+```bash
+# Local development
+streamlit run streamlit_viewer.py
+
+# Or access via Docker (if dashboard service is configured)
+# Navigate to http://localhost:8501
+```
+
+**Dashboard Features**:
+- **Timeline Navigation**: Browse historical grade snapshots
+- **Change Detection**: Visual diff highlighting between snapshots
+- **Grade Trends**: Charts showing grade progression over time
+- **Assignment Analysis**: Detailed assignment lists with filtering
+- **Summary Metrics**: Missing assignments and grade statistics
+
+## Storage and Logging
+
+### Local Files
+- **`data/all_courses_data_YYYYMMDD_HHMMSS.json`**: Daily grade snapshots
+- **`logs/grade_changes.log`**: Structured change detection logs
+- **`logs/raw_diffs.log`**: Debug-level diff data (optional)
+
+### AWS DynamoDB
+- Historical grade snapshots stored with timestamps
+- Provides redundancy and enables cross-device access
+- Configurable via `config.toml`
+
+### Log Analysis
+Change logs include:
+- Change summaries and detailed breakdowns
+- Notification delivery status per provider
+- Change classification (grade changes vs. administrative updates)
+- Priority levels for filtering important changes
+
+## Notification Examples
+
+### Grade Change Alert
+```
+Changes detected: 1 value(s) changed
+
+Detailed changes:
+• Math 7 test grade: 85/100 → 88/100, period grade now 91%
+
+--- AI Analysis ---
+Math test grade improved from 85/100 to 88/100, boosting the overall period grade to 91%.
+```
+
+### New Assignment Alert
+```
+Changes detected: 1 list item(s) added
+
+--- AI Analysis ---
+'Bill Nye Atoms' assignment added to Science 7 (due 9/19/25 3:59pm, ungraded)
+```
+
+## Architecture
+
+### Core Components
+- **Scraper** (`pipeline/scraper.py`): Selenium-based data extraction
+- **Comparator** (`pipeline/comparator.py`): DeepDiff change detection
+- **Notifications** (`notifications/`): Plugin-based alert system
+- **Storage** (`dynamodb_manager.py`): Dual local/cloud persistence
+- **Dashboard** (`streamlit_viewer.py`): Web-based grade analysis
+
+### Error Handling
+- **Retry Logic**: Exponential backoff for transient failures
+- **Circuit Breakers**: Protect against cascading failures
+- **Graceful Degradation**: Continue operation if individual components fail
+- **Comprehensive Logging**: Track errors and system health
+
+## Development
 
 ### Local Development
 ```bash
 # Install dependencies
 uv pip install -r requirements.txt
 
-# Run scraper
+# Run single scrape
 python main.py
 
-# Test pipeline
+# Test components
 python test_pipeline.py
 ```
 
-### Component Testing
+### Adding Notification Providers
+Extend the `NotificationProvider` base class in `notifications/base.py`:
+
 ```python
-from pipeline.orchestrator import GradePipeline
+class CustomProvider(NotificationProvider):
+    @property
+    def provider_name(self) -> str:
+        return "custom"
 
-pipeline = GradePipeline()
-status = pipeline.get_pipeline_status()
-test_results = pipeline.test_pipeline_components()
+    def send(self, message: NotificationMessage) -> bool:
+        # Implementation
+        pass
 ```
 
-## Error Handling Examples
+## Troubleshooting
 
-### Retry with Backoff
-```python
-@retry_with_backoff(max_retries=3, strategy=RetryStrategy.EXPONENTIAL)
-def risky_operation():
-    # Operation that might fail
-    pass
+### Common Issues
+- **Authentication**: Verify Google credentials in `.env`
+- **Permissions**: Check Docker volume permissions for data directory
+- **Scheduling**: Ensure `SCRAPE_TIMES` format is correct (24-hour, comma-separated)
+- **Dependencies**: Use `docker-containerization` branch for latest fixes
+
+### Monitoring
+```bash
+# Check container status
+docker compose ps
+
+# View real-time logs
+docker compose logs -f
+
+# Debug scheduling
+docker compose exec schoology-scraper env | grep SCRAPE_TIMES
 ```
 
-### Custom Error Handling
-```python
-try:
-    scrape_data()
-except Exception as e:
-    handle_scraping_error(e, {"operation": "scrape_grades"})
-```
+## License
 
-### Circuit Breaker
-```python
-circuit_breaker = CircuitBreaker(failure_threshold=3, timeout=300)
-result = circuit_breaker.call(external_service_call)
-```
-
-## Notification System
-
-### Sending Notifications
-```python
-from notifications.manager import NotificationManager
-from notifications.base import NotificationMessage
-
-message = NotificationMessage(
-    title="Grade Changes",
-    content="New grades detected",
-    priority="normal",
-    metadata={"changes": change_data}
-)
-
-results = manager.send_notification(message)
-```
-
-### Provider Configuration
-Providers are automatically loaded based on available credentials:
-
-- **Pushover**: Requires `pushover_token` and `pushover_userkey`
-- **Email**: Requires email settings and `email_enabled=true`
-- **Gemini**: Requires `gemini_key`
-
-## Migration Notes
-
-### Backward Compatibility
-- Old `main.py` backed up as `main_old.py`
-- Original notification modules preserved but replaced with plugin versions
-- All data storage mechanisms unchanged
-- Existing configuration files work without modification
-
-### New Files Created
-```
-notifications/
-├── __init__.py
-├── base.py
-├── pushover_provider.py
-├── email_provider.py
-├── gemini_provider.py
-└── manager.py
-
-pipeline/
-├── __init__.py
-├── scraper.py
-├── comparator.py
-├── notifier.py
-├── orchestrator.py
-└── error_handling.py
-
-shared/
-├── config.py (enhanced)
-└── diff_logger.py (new)
-
-logs/
-├── grade_changes.log (auto-generated)
-└── raw_diffs.log (auto-generated, configurable)
-
-test_pipeline.py
-test_diff_logging.py (new)
-PHASE3_README.md
-```
-
-## Testing
-
-The `test_pipeline.py` script validates:
-
-1. Configuration loading
-2. Component initialization
-3. Notification provider availability
-4. Pipeline integration
-5. Error handling system
-6. End-to-end workflow (without actual scraping)
-
-The `test_diff_logging.py` script demonstrates:
-
-1. Structured change logging functionality
-2. JSON log format and content
-3. Notification result tracking
-4. Change metadata classification
-5. Raw diff logging (when enabled)
-
-## Benefits Achieved
-
-1. **Modularity**: Clear separation of concerns
-2. **Testability**: Each component can be tested independently
-3. **Reliability**: Comprehensive error handling and retry logic
-4. **Extensibility**: Easy to add new notification providers
-5. **Maintainability**: Focused modules with single responsibilities
-6. **Observability**: Enhanced logging and error tracking
-7. **Analytics**: Structured diff logging for data-driven optimization
-8. **Debugging**: Comprehensive change tracking with notification result correlation
-
-## ✅ Validation Results
-
-**Test Status**: **7/7 TESTS PASSED** 🎉
-- ✅ Configuration Loading
-- ✅ Scraper Component  
-- ✅ Comparator Component
-- ✅ Notification Providers (Pushover, Email, Gemini)
-- ✅ Pipeline Status & Integration
-- ✅ Error Handling System
-- ✅ End-to-End Integration
-
-## Next Steps
-
-1. ✅ ~~Run `python test_pipeline.py` to validate the implementation~~ **COMPLETED**
-2. ✅ ~~**Restore conditional storage logic** - Only save when data changes~~ **COMPLETED**
-3. Ready to test the full pipeline with `python main.py`
-4. Monitor logs for any issues during production operation
-5. Consider removing old backup files after successful operation validation
-
-## ✅ **PHASE 3 COMPLETE**
-
-The Phase 3 refactoring maintains all existing functionality while providing a robust, extensible foundation for future enhancements. All architectural goals have been achieved and validated through comprehensive testing.
-
-**All Issues Resolved**: Conditional storage logic has been restored and enhanced - the system now only saves data when changes are detected, with configurable behavior and comprehensive logging.
-
-### **✅ Implementation Validated**
-- **Test Result**: Successfully skips saves when no changes detected
-- **Storage Optimization**: No unnecessary DynamoDB writes or local files
-- **Logging**: Clear decision tracking for all save operations  
-- **Configuration**: Fully configurable with fail-safe options
+This project is for educational purposes. Please ensure compliance with your institution's terms of service when using automated tools to access their systems.

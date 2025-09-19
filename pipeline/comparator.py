@@ -216,7 +216,7 @@ class GradeComparator:
         if changes['type'] == 'initial':
             return changes['message']
         
-        message = f"Grade changes detected: {changes['summary']}\n\n"
+        message = f"Changes detected: {changes['summary']}\n\n"
         
         # Add detailed changes
         detailed_changes = changes.get('detailed_changes', [])
