@@ -98,13 +98,22 @@ def run_scraper() -> bool:
                               text=True,
                               timeout=1800)  # 30 minute timeout
 
+        # Forward stdout/stderr to scheduler logs
+        if result.stdout:
+            for line in result.stdout.strip().split('\n'):
+                if line.strip():
+                    logging.info(f"PIPELINE: {line}")
+
+        if result.stderr:
+            for line in result.stderr.strip().split('\n'):
+                if line.strip():
+                    logging.error(f"PIPELINE ERROR: {line}")
+
         if result.returncode == 0:
             logging.info("Grade scraper completed successfully")
             return True
         else:
             logging.error(f"Grade scraper failed with exit code {result.returncode}")
-            if result.stderr:
-                logging.error(f"Error output: {result.stderr}")
             return False
 
     except subprocess.TimeoutExpired:

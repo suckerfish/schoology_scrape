@@ -45,6 +45,8 @@ docker compose logs -f                 # View logs
 docker compose down                    # Stop
 ```
 
+**Note**: This repository is for development only. Production deployment runs from a separate location via git pull.
+
 **Local development**:
 ```bash
 uv pip install -r requirements.txt     # Install deps
