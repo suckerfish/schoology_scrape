@@ -5,6 +5,8 @@ services:
     pull_policy: build
     container_name: schoology-scheduler
     command: python scheduler.py
+    env_file:
+      - .env
     environment:
       - PYTHONUNBUFFERED=1
     volumes:
