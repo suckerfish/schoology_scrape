@@ -54,6 +54,7 @@ class AppConfig:
     cache_ttl_seconds: int = 300  # 5 minutes
     max_retries: int = 3
     retry_delay_seconds: int = 2
+    scrape_times: str = "21:00"  # Default fallback schedule
 
 
 @dataclass
@@ -130,6 +131,7 @@ class Config:
                 "cache_ttl_seconds": self.app.cache_ttl_seconds,
                 "max_retries": self.app.max_retries,
                 "retry_delay_seconds": self.app.retry_delay_seconds,
+                "scrape_times": self.app.scrape_times,
             },
             "storage": {
                 "conditional_save": self.storage.conditional_save,
@@ -204,7 +206,8 @@ def load_config(env_file: Optional[str] = None, config_file: str = "config.toml"
         log_level=toml_config.get('app', {}).get('log_level', 'INFO'),
         cache_ttl_seconds=toml_config.get('app', {}).get('cache_ttl_seconds', 300),
         max_retries=toml_config.get('app', {}).get('max_retries', 3),
-        retry_delay_seconds=toml_config.get('app', {}).get('retry_delay_seconds', 2)
+        retry_delay_seconds=toml_config.get('app', {}).get('retry_delay_seconds', 2),
+        scrape_times=os.getenv('SCRAPE_TIMES', '21:00')
     )
     
     storage_config = StorageConfig(

@@ -10,6 +10,7 @@ import logging
 import subprocess
 from datetime import datetime, timedelta
 from typing import List
+from shared.config import get_config
 
 def setup_logging():
     """Setup logging for the scheduler"""
@@ -130,9 +131,16 @@ def main():
 
     logger.info("Starting timestamp-based grade scraper scheduler")
 
-    # Get scrape times from environment
-    scrape_times_str = os.getenv('SCRAPE_TIMES', '21:00')
-    logger.info(f"Configured scrape times: {scrape_times_str}")
+    try:
+        # Get configuration including scrape times
+        config = get_config()
+        scrape_times_str = config.app.scrape_times
+        logger.info(f"Configured scrape times: {scrape_times_str}")
+    except Exception as e:
+        # Fallback to environment variable if config fails
+        logger.warning(f"Failed to load config, falling back to environment: {e}")
+        scrape_times_str = os.getenv('SCRAPE_TIMES', '21:00')
+        logger.info(f"Fallback scrape times: {scrape_times_str}")
 
     # Parse scrape times
     scrape_times = parse_scrape_times(scrape_times_str)
