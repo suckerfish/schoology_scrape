@@ -271,7 +271,7 @@ class GradePipeline:
         """
         try:
             # Format the grade changes
-            formatted_message = self.comparator.format_changes_as_message(changes)
+            formatted_message = self.comparator.format_changes_for_notification(changes)
 
             # Create enhanced status message that includes changes
             status_info = f"Grade monitoring completed successfully. Duration: {pipeline_duration}"
