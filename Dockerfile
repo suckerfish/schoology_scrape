@@ -7,9 +7,9 @@ ENV PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive \
     TZ=America/Los_Angeles
 
-# Install minimal system dependencies (only CA certs for HTTPS requests)
+# Install minimal system dependencies (CA certs + gosu for non-root execution)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
+    ca-certificates gosu \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get autoremove -y \
     && apt-get autoclean
