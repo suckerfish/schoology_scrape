@@ -3,7 +3,7 @@ import json
 import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
-from .scraper import GradeScraper
+from .api_scraper import APIGradeScraper
 from .comparator import GradeComparator
 from .notifier import GradeNotifier
 from dynamodb_manager import DynamoDBManager
@@ -18,7 +18,7 @@ class GradePipeline:
         self.config = get_config()
         
         # Initialize pipeline components
-        self.scraper = GradeScraper()
+        self.scraper = APIGradeScraper()
         self.comparator = GradeComparator()
         self.notifier = GradeNotifier()
         self.data_service = DynamoDBManager()
@@ -42,8 +42,8 @@ class GradePipeline:
         self.logger.info("Starting grade monitoring pipeline")
         
         try:
-            # Step 1: Scrape grades
-            self.logger.info("Step 1: Scraping grades from Schoology")
+            # Step 1: Fetch grades via API
+            self.logger.info("Step 1: Fetching grades from Schoology API")
             grade_data = self._scrape_grades(download_path)
             if not grade_data:
                 self._handle_scraping_failure()
@@ -93,32 +93,32 @@ class GradePipeline:
             return False
     
     def _scrape_grades(self, download_path: str) -> Optional[Dict[str, Any]]:
-        """Scrape grades with error handling and retries"""
+        """Fetch grades via API with error handling and retries"""
         max_retries = self.config.app.max_retries if hasattr(self.config.app, 'max_retries') else 3
-        
+
         for attempt in range(max_retries):
             try:
-                self.logger.info(f"Scraping attempt {attempt + 1}/{max_retries}")
-                
+                self.logger.info(f"API fetch attempt {attempt + 1}/{max_retries}")
+
                 with self.scraper as scraper:
                     grade_data = scraper.full_scrape_session(download_path)
-                    
+
                 if grade_data:
-                    self.logger.info("Grade scraping successful")
+                    self.logger.info("API fetch successful")
                     return grade_data
                 else:
-                    self.logger.warning(f"Scraping attempt {attempt + 1} returned no data")
-                    
+                    self.logger.warning(f"API fetch attempt {attempt + 1} returned no data")
+
             except Exception as e:
-                self.logger.error(f"Scraping attempt {attempt + 1} failed: {e}")
-                
+                self.logger.error(f"API fetch attempt {attempt + 1} failed: {e}")
+
                 if attempt < max_retries - 1:
-                    self.logger.info("Retrying scraping...")
+                    self.logger.info("Retrying API fetch...")
                     # Optional: add delay between retries
                     import time
                     time.sleep(5)
-        
-        self.logger.error("All scraping attempts failed")
+
+        self.logger.error("All API fetch attempts failed")
         return None
     
     def _detect_changes(self, grade_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -300,14 +300,14 @@ class GradePipeline:
             return False
     
     def _handle_scraping_failure(self):
-        """Handle scraping failure with appropriate notifications"""
-        error_message = "Failed to scrape grade data from Schoology"
+        """Handle API fetch failure with appropriate notifications"""
+        error_message = "Failed to fetch grade data from Schoology API"
         self.logger.error(error_message)
-        
+
         # Send error notification
         self.notifier.send_error_notification(
             error_message,
-            "All scraping attempts failed. Please check Schoology credentials and network connectivity."
+            "All API fetch attempts failed. Please check API credentials and network connectivity."
         )
     
     def test_pipeline_components(self) -> Dict[str, bool]:
@@ -319,14 +319,14 @@ class GradePipeline:
         """
         results = {}
         
-        # Test scraper (just initialization)
+        # Test API scraper (just initialization)
         try:
-            test_scraper = GradeScraper()
-            results['scraper_init'] = test_scraper.initialize_driver()
+            test_scraper = APIGradeScraper()
+            results['api_scraper_init'] = test_scraper.initialize_driver()
             test_scraper.cleanup()
         except Exception as e:
-            self.logger.error(f"Scraper test failed: {e}")
-            results['scraper_init'] = False
+            self.logger.error(f"API scraper test failed: {e}")
+            results['api_scraper_init'] = False
         
         # Test data service
         try:

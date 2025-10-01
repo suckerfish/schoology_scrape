@@ -26,7 +26,7 @@ def main():
     setup_logging()
     logger = logging.getLogger(__name__)
     
-    logger.info("Starting Schoology Grade Scraper (Phase 3 Architecture)")
+    logger.info("Starting Schoology Grade Scraper (API Polling Mode)")
     
     try:
         # Initialize the pipeline

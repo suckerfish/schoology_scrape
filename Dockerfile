@@ -5,18 +5,11 @@ FROM python:3.12-slim-bookworm as base
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     DEBIAN_FRONTEND=noninteractive \
-    TZ=America/Los_Angeles \
-    DISPLAY=:99
+    TZ=America/Los_Angeles
 
-# Install system dependencies
+# Install minimal system dependencies (only CA certs for HTTPS requests)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    wget curl unzip xvfb ca-certificates gnupg gosu \
-    chromium chromium-driver \
-    fonts-liberation libasound2 libatk-bridge2.0-0 libatk1.0-0 \
-    libatspi2.0-0 libcups2 libdbus-1-3 libdrm2 libgbm1 \
-    libgtk-3-0 libnspr4 libnss3 libwayland-client0 \
-    libxcomposite1 libxdamage1 libxfixes3 libxkbcommon0 \
-    libxrandr2 xdg-utils \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get autoremove -y \
     && apt-get autoclean
@@ -48,7 +41,7 @@ ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 # Health check
 HEALTHCHECK --interval=60s --timeout=30s --start-period=120s --retries=3 \
-    CMD python -c "import sys; from selenium import webdriver; sys.exit(0)" || exit 1
+    CMD python -c "import sys; import requests; sys.exit(0)" || exit 1
 
 # No ports to expose (background service)
 
