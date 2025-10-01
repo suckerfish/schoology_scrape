@@ -8,10 +8,15 @@ Automated grade monitoring system: scrapes Schoology → detects changes → sen
 
 ## Architecture
 
-**Core Pipeline**: `pipeline/scraper.py` → `pipeline/comparator.py` → `notifications/` → `dynamodb_manager.py`
+**Core Pipeline**: Data Fetcher → `pipeline/comparator.py` → `notifications/` → `dynamodb_manager.py`
+
+**Branches:**
+- `docker-containerization` - Selenium-based web scraping (stable, production)
+- `api-polling` - Schoology API-based polling (faster, experimental)
 
 **Key Directories**:
 - `pipeline/` - Data extraction, change detection, orchestration
+- `api/` - Schoology API client and fetcher (api-polling branch only)
 - `notifications/` - Plugin-based alerts (Pushover, Email, Gemini AI)
 - `data/` - Local JSON snapshots (`all_courses_data_YYYYMMDD_HHMMSS.json`)
 - `logs/` - Change tracking (`grade_changes.log`, `raw_diffs.log`)
@@ -20,11 +25,22 @@ Automated grade monitoring system: scrapes Schoology → detects changes → sen
 ## Configuration
 
 **Environment variables** (`.env`):
+
+**For docker-containerization branch (Selenium scraping):**
 - `evan_google`/`evan_google_pw` - Schoology login credentials
 - `SCRAPE_TIMES` - Run schedule ("08:00,20:00" for 8am/8pm daily)
 - `aws_key`/`aws_secret` - DynamoDB storage
 - `pushover_token`/`pushover_userkey` - Mobile notifications
 - `gemini_key` - AI analysis
+
+**For api-polling branch (API-based):**
+- `SCHOOLOGY_API_KEY` - API key from Schoology developer console
+- `SCHOOLOGY_API_SECRET` - API secret from Schoology developer console
+- `SCHOOLOGY_DOMAIN` - Your Schoology domain (e.g., lvjusd.schoology.com)
+- `SCRAPE_TIMES` - Run schedule (same as above)
+- `aws_key`/`aws_secret` - DynamoDB storage (same as above)
+- `pushover_token`/`pushover_userkey` - Mobile notifications (same as above)
+- `gemini_key` - AI analysis (same as above)
 
 **App settings** (`config.toml`): cache, retries, logging, AWS region
 
@@ -68,6 +84,25 @@ python test_pipeline.py                # Validate components
 - **Error Handling**: Retry logic with exponential backoff, circuit breakers
 - **Docker**: ARM64/x86_64 support, non-root execution, automatic permissions
 
+### Branch-Specific Implementation
+
+**docker-containerization branch:**
+- **Data Source**: Selenium WebDriver with Chromium browser
+- **Method**: Automated web scraping via Google OAuth login
+- **Speed**: ~2-3 minutes per run (browser automation overhead)
+- **Reliability**: Subject to UI changes, requires full browser stack
+- **Docker Image**: ~500MB with Chromium + dependencies
+- **Data Coverage**: 100% of visible grade data including teacher comments
+
+**api-polling branch:**
+- **Data Source**: Schoology REST API with OAuth 1.0a authentication
+- **Method**: Direct API calls, no browser required
+- **Speed**: ~30 seconds per run (API requests only)
+- **Reliability**: Stable API contract, less brittle than web scraping
+- **Docker Image**: ~1.1GB (slimmer base, still includes pandas/streamlit for dashboard)
+- **Data Coverage**: ~97.5% (78/80 assignments) - missing 2 assignments, limited teacher comments
+- **Known Issue**: Output format differs slightly from scraper, causing false positive change detection (see TODO_API_FORMATTING.md)
+
 ## Notification Flow
 
 1. **Comparator** detects changes → formats message
@@ -78,6 +113,12 @@ python test_pipeline.py                # Validate components
 
 ## Recent Changes
 
+- ✅ **Created api-polling branch** - API-based alternative to web scraping (2025-09-30)
+  - Replaced Selenium with Schoology REST API
+  - ~6x faster execution (30s vs 3min)
+  - Removed Chromium dependencies, slimmer base image
+  - 97.5% data coverage, missing some comments
+  - **TODO**: Fix format mismatches causing false positive notifications
 - ✅ **Updated Gemini prompt** to Option 1E style (natural, concise)
 - ✅ **Fixed title** from "Grade changes detected" → "Changes detected"
 - ✅ **Removed redundant** SCHEDULING.md file
