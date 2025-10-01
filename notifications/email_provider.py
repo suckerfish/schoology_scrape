@@ -28,12 +28,15 @@ class EmailProvider(NotificationProvider):
         if not self.is_available():
             self.logger.error("Email provider not properly configured")
             return False
-        
+
         try:
+            # Parse multiple recipients (comma-separated)
+            recipient_emails = [email.strip() for email in self.config['receiver_email'].split(',')]
+
             # Create the container email message
             msg = MIMEMultipart('alternative')
             msg['From'] = self.config['sender_email']
-            msg['To'] = self.config['receiver_email']
+            msg['To'] = ', '.join(recipient_emails)
             msg['Subject'] = message.title or "Notification"
             
             # Create HTML version of the message
@@ -70,10 +73,10 @@ class EmailProvider(NotificationProvider):
             server = smtplib.SMTP(self.config['smtp_server'], self.config['smtp_port'])
             server.starttls()
             server.login(self.config['sender_email'], self.config['sender_password'])
-            server.sendmail(self.config['sender_email'], self.config['receiver_email'], msg.as_string())
+            server.sendmail(self.config['sender_email'], recipient_emails, msg.as_string())
             server.quit()
-            
-            self.logger.info("Email notification sent successfully")
+
+            self.logger.info(f"Email notification sent successfully to {len(recipient_emails)} recipients")
             return True
             
         except smtplib.SMTPException as e:
