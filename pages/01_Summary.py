@@ -1,24 +1,13 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from dynamodb_manager import DynamoDBManager
+from shared.local_snapshots import get_latest_snapshot_data
 
 st.set_page_config(layout="wide", page_title="Grades Summary")
 
 def get_latest_grades():
-    db = DynamoDBManager()
-    response = db.table.scan(
-        ProjectionExpression='#date, #data',
-        ExpressionAttributeNames={
-            '#date': 'Date',
-            '#data': 'Data'
-        }
-    )
-    items = response.get('Items', [])
-    if not items:
-        return None
-    
-    return sorted(items, key=lambda x: x['Date'], reverse=True)[0]['Data']
+    # New: read the latest snapshot from local files
+    return get_latest_snapshot_data()
 
 def create_summary_metrics(grades_data):
     total_courses = len(grades_data)

@@ -9,26 +9,14 @@ st.markdown("""
         }
     </style>
 """, unsafe_allow_html=True)
-from dynamodb_manager import DynamoDBManager
-from datetime import datetime, timedelta
+from datetime import datetime
 import pandas as pd
 from deepdiff import DeepDiff
+from shared.local_snapshots import get_all_snapshots
 
-def get_all_snapshots():
-    db = DynamoDBManager()
-    response = db.table.scan(
-        ProjectionExpression='#date, #data',
-        ExpressionAttributeNames={
-            '#date': 'Date',
-            '#data': 'Data'
-        }
-    )
-    items = response.get('Items', [])
-    if not items:
-        return []
-    
-    # Sort items by date, newest first
-    return sorted(items, key=lambda x: x['Date'], reverse=True)
+def load_all_snapshots():
+    # New: read from local data files instead of DynamoDB
+    return get_all_snapshots()
 
 def format_snapshot_label(snapshot):
     # Convert ISO format to datetime
@@ -161,7 +149,7 @@ def main():
     st.title('Schoology Grades')
     
     # Get all snapshots
-    snapshots = get_all_snapshots()
+    snapshots = load_all_snapshots()
     if not snapshots:
         st.error('No grades data available')
         return

@@ -1,20 +1,12 @@
 import streamlit as st
 import pandas as pd
-from dynamodb_manager import DynamoDBManager
+from shared.local_snapshots import get_latest_snapshots
 
 st.set_page_config(layout="wide", page_title="Assignment List")
 
-def get_latest_snapshots(count=2):
-    db = DynamoDBManager()
-    response = db.table.scan(
-        ProjectionExpression='#date, #data',
-        ExpressionAttributeNames={
-            '#date': 'Date',
-            '#data': 'Data'
-        }
-    )
-    items = sorted(response.get('Items', []), key=lambda x: x['Date'], reverse=True)
-    return items[:count]
+def load_latest_snapshots(count=2):
+    # New: read the latest N snapshots from local files
+    return get_latest_snapshots(count=count)
 
 def extract_assignments(data):
     assignments = []
@@ -43,7 +35,7 @@ def main():
     st.title('Assignment List')
     
     # Get latest two snapshots
-    snapshots = get_latest_snapshots(2)
+    snapshots = load_latest_snapshots(2)
     if not snapshots:
         st.error('No assignment data available')
         return

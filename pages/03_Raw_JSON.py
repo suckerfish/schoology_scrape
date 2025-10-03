@@ -1,22 +1,10 @@
 import streamlit as st
-from dynamodb_manager import DynamoDBManager
 from datetime import datetime
+from shared.local_snapshots import get_all_snapshots
 
-def get_all_snapshots():
-    db = DynamoDBManager()
-    response = db.table.scan(
-        ProjectionExpression='#date, #data',
-        ExpressionAttributeNames={
-            '#date': 'Date',
-            '#data': 'Data'
-        }
-    )
-    items = response.get('Items', [])
-    if not items:
-        return []
-    
-    # Sort items by date, newest first
-    return sorted(items, key=lambda x: x['Date'], reverse=True)
+def load_all_snapshots():
+    # New: read from local files
+    return get_all_snapshots()
 
 def format_snapshot_label(snapshot):
     # Convert ISO format to datetime
@@ -28,7 +16,7 @@ def main():
     st.title('Raw Grade Data (JSON)')
     
     # Get all snapshots
-    snapshots = get_all_snapshots()
+    snapshots = load_all_snapshots()
     if not snapshots:
         st.error('No grades data available')
         return

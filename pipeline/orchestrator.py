@@ -21,7 +21,8 @@ class GradePipeline:
         self.scraper = APIGradeScraper()
         self.comparator = GradeComparator()
         self.notifier = GradeNotifier()
-        self.data_service = DynamoDBManager()
+        # DynamoDB disabled for local-only storage
+        self.data_service = None
         self.diff_logger = DiffLogger(self.config)
         
         # Ensure data directory exists
@@ -167,14 +168,14 @@ class GradePipeline:
             self.logger.error(f"Failed to save grade data to local file: {e}")
             success = False
         
-        # Save to data service (DynamoDB)
-        try:
-            snapshot_id = self.data_service.add_entry(grade_data)
-            self.logger.info(f"Grade data saved to data service with ID: {snapshot_id}")
-            
-        except Exception as e:
-            self.logger.error(f"Failed to save grade data to data service: {e}")
-            success = False
+        # Save to data service (disabled)
+        if self.data_service is not None:
+            try:
+                snapshot_id = self.data_service.add_entry(grade_data)
+                self.logger.info(f"Grade data saved to data service with ID: {snapshot_id}")
+            except Exception as e:
+                self.logger.error(f"Failed to save grade data to data service: {e}")
+                success = False
         
         return success
     

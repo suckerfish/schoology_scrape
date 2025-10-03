@@ -2,21 +2,15 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from dynamodb_manager import DynamoDBManager
+from shared.local_snapshots import get_all_snapshots
 from datetime import datetime
 
 st.set_page_config(layout="wide", page_title="Grade Analytics")
 
-def get_all_snapshots():
-    db = DynamoDBManager()
-    response = db.table.scan(
-        ProjectionExpression='#date, #data',
-        ExpressionAttributeNames={
-            '#date': 'Date',
-            '#data': 'Data'
-        }
-    )
-    return sorted(response.get('Items', []), key=lambda x: x['Date'])
+def load_all_snapshots():
+    # New: read snapshots from local files (ascending for trends)
+    snaps = get_all_snapshots()
+    return sorted(snaps, key=lambda x: x['Date'])
 
 def extract_numeric_grade(grade_str):
     try:
@@ -56,7 +50,7 @@ def create_grade_distribution(latest_data):
 def main():
     st.title('Grade Analytics')
     
-    snapshots = get_all_snapshots()
+    snapshots = load_all_snapshots()
     if not snapshots:
         st.error('No grades data available')
         return
