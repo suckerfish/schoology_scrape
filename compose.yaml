@@ -29,4 +29,3 @@ services:
     depends_on:
       - schoology-scheduler
     restart: unless-stopped
-    profiles: ["dashboard"]
