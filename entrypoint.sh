@@ -1,10 +1,20 @@
 #!/bin/bash
 set -e
 
-# Create directories and fix permissions
-mkdir -p /app/data /app/logs
-chown -R scraper:scraper /app/data /app/logs
-chmod 755 /app/data /app/logs
+# Ensure directories exist (mkdir -p is safe if already present)
+mkdir -p /app/data /app/logs || true
+
+# Fix ownership only if writable (avoids failures on read-only mounts)
+for d in /app/data /app/logs; do
+  if [ -d "$d" ]; then
+    if [ -w "$d" ]; then
+      chown -R scraper:scraper "$d" || true
+      chmod 755 "$d" || true
+    else
+      echo "[entrypoint] $d is read-only; skipping ownership changes"
+    fi
+  fi
+done
 
 # Switch to non-root user and run the application
 exec gosu scraper "$@"
