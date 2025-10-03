@@ -24,11 +24,34 @@ class APIGradeFetcher:
         self.assignments_cache = {}
         self.enrollment_id_map = {}  # Maps grade_section_id -> enrollment_section_id
 
-    def _format_grade(self, grade_obj: Dict[str, Any]) -> str:
-        """Format grade value to match scraper format (e.g., '5 / 5', 'Missing')"""
+    def _format_grade(self, grade_obj: Dict[str, Any], due_date_str: str = None) -> str:
+        """
+        Format grade value to match scraper format (e.g., '5 / 5', 'Missing')
+
+        Args:
+            grade_obj: Grade object from API
+            due_date_str: Due date string in format 'YYYY-MM-DD HH:MM:SS' (optional, unused)
+
+        Note:
+            Exception field values:
+            - 0 = no exception
+            - 1 = excused
+            - 2 = incomplete
+            - 3 = missing
+        """
         grade = grade_obj.get('grade')
         max_points = grade_obj.get('max_points')
+        exception = grade_obj.get('exception', 0)
 
+        # Check exception field - this is the authoritative source
+        if exception == 3:
+            return 'Missing'
+        elif exception == 1:
+            return 'Excused'
+        elif exception == 2:
+            return 'Incomplete'
+
+        # No exception set - format grade normally
         if grade is None or grade == '':
             return 'Not graded'
 
@@ -99,20 +122,27 @@ class APIGradeFetcher:
 
         return self.assignments_cache[cache_key].get('title', f'Assignment {assignment_id}')
 
-    def _get_assignment_due_date(self, section_id: str, assignment_id: str) -> str:
-        """Get assignment due date"""
+    def _get_assignment_due_date_raw(self, section_id: str, assignment_id: str) -> str:
+        """Get assignment due date in raw API format (YYYY-MM-DD HH:MM:SS)"""
         cache_key = f"{section_id}:{assignment_id}"
 
         if cache_key in self.assignments_cache:
             assignment = self.assignments_cache[cache_key]
-            due_date = assignment.get('due', '')
-            if due_date:
-                # Convert from API format (YYYY-MM-DD HH:MM:SS) to scraper format (M/D/YY h:MMpm)
-                try:
-                    dt = datetime.strptime(due_date, '%Y-%m-%d %H:%M:%S')
-                    return dt.strftime('%m/%d/%y %I:%M%p').lower()
-                except:
-                    return due_date
+            return assignment.get('due', '')
+
+        return ''
+
+    def _get_assignment_due_date(self, section_id: str, assignment_id: str) -> str:
+        """Get assignment due date formatted for display"""
+        due_date = self._get_assignment_due_date_raw(section_id, assignment_id)
+
+        if due_date:
+            # Convert from API format (YYYY-MM-DD HH:MM:SS) to scraper format (M/D/YY h:MMpm)
+            try:
+                dt = datetime.strptime(due_date, '%Y-%m-%d %H:%M:%S')
+                return dt.strftime('%m/%d/%y %I:%M%p').lower()
+            except:
+                return due_date
 
         return None
 
@@ -253,7 +283,8 @@ class APIGradeFetcher:
 
                     # Get assignment details
                     title = self._get_assignment_title(section_id, assignment_id)
-                    grade = self._format_grade(assignment_grade)
+                    due_date_raw = self._get_assignment_due_date_raw(section_id, assignment_id)
+                    grade = self._format_grade(assignment_grade, due_date_raw)
                     comment = self._get_assignment_comment(section_id, assignment_id, assignment_grade)
                     due_date = self._get_assignment_due_date(section_id, assignment_id)
 

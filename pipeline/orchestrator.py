@@ -126,8 +126,9 @@ class GradePipeline:
         """Detect changes with fallback mechanisms"""
         try:
             # Use file-based comparison as primary method (DynamoDB method not implemented)
-            self.logger.info("Using file-based change detection")
-            changes = self.comparator.detect_changes_from_file(grade_data)
+            # Enable grade_changes_only to only notify on grade changes, not new assignments/due dates/etc
+            self.logger.info("Using file-based change detection (grade changes only)")
+            changes = self.comparator.detect_changes_from_file(grade_data, grade_changes_only=True)
             return changes
             
         except Exception as e:

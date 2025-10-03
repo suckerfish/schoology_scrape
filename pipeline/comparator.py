@@ -58,13 +58,14 @@ class GradeComparator:
             self.logger.error(f"Error detecting changes: {e}")
             return None
     
-    def detect_changes_from_file(self, new_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def detect_changes_from_file(self, new_data: Dict[str, Any], grade_changes_only: bool = False) -> Optional[Dict[str, Any]]:
         """
         Compare new data with the latest local file to detect changes
-        
+
         Args:
             new_data: New grade data to compare
-            
+            grade_changes_only: If True, only report grade-related changes
+
         Returns:
             Dict containing change information, or None if no changes
         """
@@ -78,7 +79,7 @@ class GradeComparator:
                     'message': 'Initial grade data captured (no local files)',
                     'data': new_data
                 }
-            
+
             latest_files = sorted(data_dir.glob('all_courses_data_*.json'))
             if not latest_files:
                 self.logger.info("No previous files found - treating as initial data")
@@ -87,31 +88,37 @@ class GradeComparator:
                     'message': 'Initial grade data captured (no previous files)',
                     'data': new_data
                 }
-            
+
             latest_file = latest_files[-1]
-            
+
             # Load the latest file data
             with open(latest_file, 'r') as f:
                 latest_data = json.load(f)
-            
+
             # Perform deep comparison
             diff = DeepDiff(latest_data, new_data, ignore_order=True)
-            
+
             if diff:
                 self.logger.info(f"Changes detected compared to {latest_file}")
-                changes = self._process_changes(diff, latest_data, new_data)
+                changes = self._process_changes(diff, latest_data, new_data, grade_changes_only=grade_changes_only)
                 # Add comparison file info for logging
                 changes['comparison_files'] = [str(latest_file)]
+
+                # If filtering for grade changes only, check if any grade changes were found
+                if grade_changes_only and not changes.get('detailed_changes'):
+                    self.logger.info("No grade changes detected (only non-grade changes found)")
+                    return None
+
                 return changes
             else:
                 self.logger.info("No changes detected compared to latest file")
                 return None
-                
+
         except Exception as e:
             self.logger.error(f"Error detecting changes from file: {e}")
             return None
     
-    def _process_changes(self, diff: DeepDiff, old_data: Dict[str, Any], new_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _process_changes(self, diff: DeepDiff, old_data: Dict[str, Any], new_data: Dict[str, Any], grade_changes_only: bool = False) -> Dict[str, Any]:
         """
         Process DeepDiff output into a structured change report
 
@@ -119,11 +126,12 @@ class GradeComparator:
             diff: DeepDiff result
             old_data: Previous data
             new_data: New data
+            grade_changes_only: If True, only include grade-related changes
 
         Returns:
             Dict containing processed change information
         """
-        detailed_changes = self._extract_detailed_changes(diff)
+        detailed_changes = self._extract_detailed_changes(diff, grade_changes_only=grade_changes_only)
 
         changes = {
             'type': 'update',
@@ -131,7 +139,8 @@ class GradeComparator:
             'detailed_changes': detailed_changes,
             'diff_raw': diff,
             'old_data': old_data,
-            'new_data': new_data
+            'new_data': new_data,
+            'grade_changes_only': grade_changes_only
         }
 
         # Log raw diff for debugging (if enabled)
@@ -168,39 +177,93 @@ class GradeComparator:
             return "Unknown changes detected"
         
         return ", ".join(summary_parts)
-    
-    def _extract_detailed_changes(self, diff: DeepDiff) -> List[Dict[str, Any]]:
-        """Extract detailed change information for notifications"""
+
+    def _is_grade_change(self, path: str) -> bool:
+        """
+        Check if a DeepDiff path represents a grade-related change.
+
+        Args:
+            path: DeepDiff path string (e.g., "root['Course']['periods']['T1']['categories']['Tests']['assignments'][0]['grade']")
+
+        Returns:
+            True if the path represents a grade change, False otherwise
+
+        Grade-related paths include:
+            - Assignment grades: ['grade']
+            - Exception status: ['exception'] (Missing/Excused/Incomplete)
+            - Teacher comments: ['comment']
+            - Max points: ['max_points']
+            - Aggregate grades: ['course_grade'], ['period_grade'], ['category_grade']
+        """
+        # Grade value fields
+        if "['grade']" in path:
+            return True
+
+        # Exception status (Missing/Excused/Incomplete)
+        if "['exception']" in path:
+            return True
+
+        # Teacher comments on grades
+        if "['comment']" in path:
+            return True
+
+        # Max points changes affect grade calculations
+        if "['max_points']" in path:
+            return True
+
+        # Aggregate grade fields
+        if any(grade_field in path for grade_field in ["['course_grade']", "['period_grade']", "['category_grade']"]):
+            return True
+
+        return False
+
+    def _extract_detailed_changes(self, diff: DeepDiff, grade_changes_only: bool = False) -> List[Dict[str, Any]]:
+        """
+        Extract detailed change information for notifications
+
+        Args:
+            diff: DeepDiff result object
+            grade_changes_only: If True, only include grade-related changes
+
+        Returns:
+            List of change dictionaries
+        """
         detailed_changes = []
-        
+
         # Process value changes
         if 'values_changed' in diff:
             for path, change in diff['values_changed'].items():
+                # Filter non-grade changes if requested
+                if grade_changes_only and not self._is_grade_change(path):
+                    continue
+
                 detailed_changes.append({
                     'type': 'value_changed',
                     'path': path,
                     'old_value': change['old_value'],
                     'new_value': change['new_value']
                 })
-        
-        # Process additions
-        if 'dictionary_item_added' in diff:
-            for path in diff['dictionary_item_added']:
-                detailed_changes.append({
-                    'type': 'item_added',
-                    'path': path,
-                    'value': 'New item added'  # Don't try to extract value from set
-                })
-        
-        # Process removals
-        if 'dictionary_item_removed' in diff:
-            for path in diff['dictionary_item_removed']:
-                detailed_changes.append({
-                    'type': 'item_removed',
-                    'path': path,
-                    'value': 'Item removed'  # Don't try to extract value from set
-                })
-        
+
+        # Skip additions/removals if only looking for grade changes
+        if not grade_changes_only:
+            # Process additions
+            if 'dictionary_item_added' in diff:
+                for path in diff['dictionary_item_added']:
+                    detailed_changes.append({
+                        'type': 'item_added',
+                        'path': path,
+                        'value': 'New item added'  # Don't try to extract value from set
+                    })
+
+            # Process removals
+            if 'dictionary_item_removed' in diff:
+                for path in diff['dictionary_item_removed']:
+                    detailed_changes.append({
+                        'type': 'item_removed',
+                        'path': path,
+                        'value': 'Item removed'  # Don't try to extract value from set
+                    })
+
         return detailed_changes
     
     def format_changes_for_notification(self, changes: Dict[str, Any]) -> str:
