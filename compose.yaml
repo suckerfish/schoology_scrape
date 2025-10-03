@@ -17,9 +17,11 @@ services:
     restart: unless-stopped
 
   grades-dashboard:
+    build: .
     image: schoology-scraper:latest
     container_name: grades-dashboard
     command: streamlit run streamlit_viewer.py --server.address 0.0.0.0 --server.port 8501 --server.enableCORS=false --server.headless=true
+    pull_policy: build
     ports:
       - "8501:8501"
     volumes:
