@@ -79,27 +79,33 @@ class GeminiProvider(NotificationProvider):
     def _prepare_analysis_prompt(self, message: NotificationMessage) -> str:
         """Prepare the analysis prompt for Gemini"""
         base_prompt = f"""
-        State exactly what changed in the most natural way possible. Always include assignment names and key details but avoid unnecessary words.
+        Describe the grade changes in natural, concise language. Include assignment names and specific grade values.
 
         Title: {message.title}
         Content: {message.content}
 
+        Focus on:
+        - Assignment grade changes (e.g., "Math test: 85/100 → 88/100")
+        - Missing/Excused/Incomplete status changes (e.g., "'Lab Report' marked as Missing")
+        - Teacher comments added/changed (e.g., "Comment added: 'Great improvement!'")
+        - Period/course grade changes (e.g., "Period grade now 91%")
+
         Examples:
-        - "'Bill Nye Atoms' assignment added to Science 7 (due 9/19/25 3:59pm, ungraded)"
-        - "Math test grade: 85/100 → 88/100, period grade now 91%"
-        - "Social Studies 'Map' due date corrected: 7/22/25 → 9/22/25 11:59pm"
+        - "Math test grade improved: 85/100 → 88/100, period grade now 91%"
+        - "'Bill Nye Atoms' assignment now graded: 48/50 (96%)"
+        - "'Lab Report' marked as Missing in Science 7"
         - "Art project comment added: 'Great work on color theory!'"
 
-        Do NOT provide recommendations, analysis, patterns, or insights. Just state what changed factually.
+        Do NOT mention due dates, new assignments, or non-grade changes. Just state the grade updates factually.
         """
-        
+
         # Add any additional context from metadata
         if message.metadata:
             if 'grade_changes' in message.metadata:
                 base_prompt += f"\n\nGrade Changes Data: {message.metadata['grade_changes']}"
             if 'course_info' in message.metadata:
                 base_prompt += f"\n\nCourse Information: {message.metadata['course_info']}"
-        
+
         return base_prompt
     
     def ask(self, question: str) -> str:
