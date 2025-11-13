@@ -131,7 +131,7 @@ class GradeComparator:
         Returns:
             Dict containing processed change information
         """
-        detailed_changes = self._extract_detailed_changes(diff, grade_changes_only=grade_changes_only)
+        detailed_changes = self._extract_detailed_changes(diff, grade_changes_only=grade_changes_only, new_data=new_data)
 
         changes = {
             'type': 'update',
@@ -217,13 +217,72 @@ class GradeComparator:
 
         return False
 
-    def _extract_detailed_changes(self, diff: DeepDiff, grade_changes_only: bool = False) -> List[Dict[str, Any]]:
+    def _is_new_graded_assignment(self, path: str, new_data: Dict[str, Any]) -> tuple[bool, Optional[Dict[str, Any]]]:
+        """
+        Check if an added item is a new assignment with a grade.
+
+        Args:
+            path: DeepDiff path string for the added item
+            new_data: The new data containing the added item
+
+        Returns:
+            Tuple of (is_graded_assignment, assignment_data)
+            - is_graded_assignment: True if this is an assignment with a grade
+            - assignment_data: The assignment dict if found, None otherwise
+        """
+        # Check if path points to an assignment in the assignments list
+        if "['assignments']" not in path:
+            return False, None
+
+        try:
+            # Parse the path to extract the assignment data
+            # Path format: "root['Course']['periods']['Period']['categories']['Category']['assignments'][index]"
+            # Remove 'root' prefix
+            path_clean = path.replace('root', '')
+
+            # Navigate through the data structure using the path
+            current = new_data
+            # Split by '][' to get path components, handle both ['key'] and [index] formats
+            import re
+            # Extract all keys/indices between brackets
+            keys = re.findall(r"\['([^']+)'\]|\[(\d+)\]", path_clean)
+
+            for key_match in keys:
+                key = key_match[0] if key_match[0] else int(key_match[1])
+                if isinstance(current, dict):
+                    current = current.get(key)
+                elif isinstance(current, list):
+                    if isinstance(key, int) and key < len(current):
+                        current = current[key]
+                    else:
+                        return False, None
+                else:
+                    return False, None
+
+                if current is None:
+                    return False, None
+
+            # Check if this is an assignment dict with a grade
+            if isinstance(current, dict) and 'grade' in current:
+                grade = current.get('grade', 'Not graded')
+                # Consider it a graded assignment if it has any grade other than "Not graded"
+                if grade and grade != 'Not graded':
+                    return True, current
+
+            return False, None
+
+        except Exception as e:
+            self.logger.debug(f"Error checking if item is graded assignment: {e}")
+            return False, None
+
+    def _extract_detailed_changes(self, diff: DeepDiff, grade_changes_only: bool = False, new_data: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
         Extract detailed change information for notifications
 
         Args:
             diff: DeepDiff result object
             grade_changes_only: If True, only include grade-related changes
+            new_data: The new data for checking new graded assignments
 
         Returns:
             List of change dictionaries
@@ -244,7 +303,20 @@ class GradeComparator:
                     'new_value': change['new_value']
                 })
 
-        # Skip additions/removals if only looking for grade changes
+        # When filtering for grade changes, still check for new graded assignments
+        if grade_changes_only and new_data:
+            # Process new assignments that have grades
+            if 'iterable_item_added' in diff:
+                for path in diff['iterable_item_added']:
+                    is_graded, assignment_data = self._is_new_graded_assignment(path, new_data)
+                    if is_graded and assignment_data:
+                        detailed_changes.append({
+                            'type': 'new_graded_assignment',
+                            'path': path,
+                            'assignment_data': assignment_data
+                        })
+
+        # Include all additions/removals if not filtering for grade changes
         if not grade_changes_only:
             # Process additions
             if 'dictionary_item_added' in diff:
@@ -269,18 +341,18 @@ class GradeComparator:
     def format_changes_for_notification(self, changes: Dict[str, Any]) -> str:
         """
         Format changes into a human-readable notification message
-        
+
         Args:
             changes: Change information from detect_changes
-            
+
         Returns:
             Formatted message string
         """
         if changes['type'] == 'initial':
             return changes['message']
-        
+
         message = f"Changes detected: {changes['summary']}\n\n"
-        
+
         # Add detailed changes
         detailed_changes = changes.get('detailed_changes', [])
         if detailed_changes:
@@ -288,11 +360,19 @@ class GradeComparator:
             for change in detailed_changes[:10]:  # Limit to first 10 changes
                 if change['type'] == 'value_changed':
                     message += f"• {change['path']}: {change['old_value']} → {change['new_value']}\n"
+                elif change['type'] == 'new_graded_assignment':
+                    # Format new graded assignment with key details
+                    assignment = change['assignment_data']
+                    title = assignment.get('title', 'Unknown')
+                    grade = assignment.get('grade', 'Unknown')
+                    message += f"• New assignment with grade: {change['path']}\n"
+                    message += f"  Title: {title}\n"
+                    message += f"  Grade: {grade}\n"
                 elif change['type'] == 'item_added':
                     message += f"• Added: {change['path']} = {change['value']}\n"
                 elif change['type'] == 'item_removed':
                     message += f"• Removed: {change['path']} = {change['value']}\n"
-            
+
             if len(detailed_changes) > 10:
                 message += f"• ... and {len(detailed_changes) - 10} more changes\n"
 
