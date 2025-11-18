@@ -275,6 +275,69 @@ class GradeComparator:
             self.logger.debug(f"Error checking if item is graded assignment: {e}")
             return False, None
 
+    def _find_graded_assignments_in_added_dict(self, path: str, new_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Recursively search an added dictionary (like a new period or category) for graded assignments.
+
+        Args:
+            path: DeepDiff path to the added dictionary item
+            new_data: The new data containing the added item
+
+        Returns:
+            List of change dictionaries for graded assignments found
+        """
+        graded_assignments = []
+
+        try:
+            # Parse the path to get to the added dictionary
+            path_clean = path.replace('root', '')
+            current = new_data
+
+            import re
+            keys = re.findall(r"\['([^']+)'\]|\[(\d+)\]", path_clean)
+
+            for key_match in keys:
+                key = key_match[0] if key_match[0] else int(key_match[1])
+                if isinstance(current, dict):
+                    current = current.get(key)
+                elif isinstance(current, list):
+                    if isinstance(key, int) and key < len(current):
+                        current = current[key]
+                    else:
+                        return graded_assignments
+                else:
+                    return graded_assignments
+
+                if current is None:
+                    return graded_assignments
+
+            # Now recursively search current for assignments with grades
+            def search_for_graded_assignments(obj, current_path):
+                if isinstance(obj, dict):
+                    # Check if this is an assignment with a grade
+                    if 'title' in obj and 'grade' in obj:
+                        grade = obj.get('grade', 'Not graded')
+                        if grade and grade != 'Not graded':
+                            graded_assignments.append({
+                                'type': 'new_graded_assignment',
+                                'path': current_path,
+                                'assignment_data': obj
+                            })
+                    # Recursively search nested dictionaries
+                    for key, value in obj.items():
+                        search_for_graded_assignments(value, f"{current_path}['{key}']")
+                elif isinstance(obj, list):
+                    # Recursively search list items
+                    for idx, item in enumerate(obj):
+                        search_for_graded_assignments(item, f"{current_path}[{idx}]")
+
+            search_for_graded_assignments(current, path)
+
+        except Exception as e:
+            self.logger.debug(f"Error searching for graded assignments in added dict: {e}")
+
+        return graded_assignments
+
     def _extract_detailed_changes(self, diff: DeepDiff, grade_changes_only: bool = False, new_data: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
         Extract detailed change information for notifications
@@ -305,7 +368,7 @@ class GradeComparator:
 
         # When filtering for grade changes, still check for new graded assignments
         if grade_changes_only and new_data:
-            # Process new assignments that have grades
+            # Process new assignments that have grades (from list additions)
             if 'iterable_item_added' in diff:
                 for path in diff['iterable_item_added']:
                     is_graded, assignment_data = self._is_new_graded_assignment(path, new_data)
@@ -315,6 +378,13 @@ class GradeComparator:
                             'path': path,
                             'assignment_data': assignment_data
                         })
+
+            # Also check dictionary additions (like new periods/categories) for graded assignments within them
+            if 'dictionary_item_added' in diff:
+                for path in diff['dictionary_item_added']:
+                    # Recursively search for graded assignments within added dictionaries
+                    added_items = self._find_graded_assignments_in_added_dict(path, new_data)
+                    detailed_changes.extend(added_items)
 
         # Include all additions/removals if not filtering for grade changes
         if not grade_changes_only:
