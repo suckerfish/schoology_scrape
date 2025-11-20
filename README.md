@@ -10,7 +10,6 @@ An automated grade monitoring system that scrapes student grades from Schoology 
 - **Change Detection**: Compares current grades with historical snapshots to detect new grades, assignment additions, and due date changes
 - **Smart Notifications**: Sends alerts via Pushover, email, and AI-generated summaries when changes are detected
 - **Historical Analysis**: Stores grade data locally and in AWS DynamoDB for trend analysis and reporting
-- **Web Dashboard**: Streamlit interface for visualizing grade history, trends, and detailed assignment information
 
 ## Key Features
 
@@ -107,25 +106,6 @@ Each assignment contains:
 - **Comments**: Teacher feedback
 - **Title**: Assignment name
 
-## Web Dashboard
-
-Launch the Streamlit dashboard for interactive grade analysis:
-
-```bash
-# Local development
-streamlit run streamlit_viewer.py
-
-# Or access via Docker (if dashboard service is configured)
-# Navigate to http://localhost:8501
-```
-
-**Dashboard Features**:
-- **Timeline Navigation**: Browse historical grade snapshots
-- **Change Detection**: Visual diff highlighting between snapshots
-- **Grade Trends**: Charts showing grade progression over time
-- **Assignment Analysis**: Detailed assignment lists with filtering
-- **Summary Metrics**: Missing assignments and grade statistics
-
 ## Storage and Logging
 
 ### Local Files
@@ -173,7 +153,6 @@ Changes detected: 1 list item(s) added
 - **Comparator** (`pipeline/comparator.py`): DeepDiff change detection
 - **Notifications** (`notifications/`): Plugin-based alert system
 - **Storage** (`dynamodb_manager.py`): Dual local/cloud persistence
-- **Dashboard** (`streamlit_viewer.py`): Web-based grade analysis
 
 ### Error Handling
 - **Retry Logic**: Exponential backoff for transient failures

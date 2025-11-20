@@ -16,12 +16,12 @@ Alternative implementation that uses the Schoology REST API instead of Selenium 
 | **Authentication** | Google OAuth via browser | OAuth 1.0a API credentials |
 | **Speed** | ~2-3 minutes | ~30 seconds |
 | **Reliability** | Brittle (UI changes break it) | Stable (API contract) |
-| **Docker Image** | ~500MB | ~1.1GB* |
+| **Docker Image** | ~500MB | ~800MB* |
 | **Dependencies** | selenium, chromium, xvfb | requests-oauthlib only |
 | **Data Coverage** | 100% including comments | 97.5% (78/80 assignments) |
 | **Teacher Comments** | ✅ Full access | ⚠️ Limited/unavailable |
 
-*Still large due to pandas/numpy/streamlit for dashboard, not the API client itself
+*Still includes pandas/numpy for data processing
 
 ## Prerequisites
 
@@ -134,9 +134,6 @@ uv pip install -r requirements.txt
 
 # Run once
 python main.py
-
-# View dashboard
-streamlit run streamlit_viewer.py
 ```
 
 ## Known Issues
@@ -295,7 +292,7 @@ If you fix the formatting issues or improve the API integration, please:
 - [ ] Investigate comment endpoint access
 - [ ] Add caching layer for assignment/category metadata
 - [ ] Consider hybrid approach: API for speed, scraper fallback for comments
-- [ ] Reduce Docker image size (currently 1.1GB due to pandas/streamlit)
+- [ ] Reduce Docker image size (currently ~800MB due to pandas/numpy dependencies)
 
 ---
 

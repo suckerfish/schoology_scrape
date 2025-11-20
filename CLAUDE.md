@@ -20,7 +20,6 @@ Automated grade monitoring system: scrapes Schoology → detects changes → sen
 - `notifications/` - Plugin-based alerts (Pushover, Email, Gemini AI)
 - `data/` - Local JSON snapshots (`all_courses_data_YYYYMMDD_HHMMSS.json`)
 - `logs/` - Change tracking (`grade_changes.log`, `raw_diffs.log`)
-- `pages/` - Streamlit dashboard components
 
 ## Configuration
 
@@ -67,7 +66,6 @@ docker compose down                    # Stop
 ```bash
 uv pip install -r requirements.txt     # Install deps
 python main.py                         # Single run
-streamlit run streamlit_viewer.py      # Dashboard
 ```
 
 **Testing**:
@@ -99,7 +97,7 @@ python test_pipeline.py                # Validate components
 - **Method**: Direct API calls, no browser required
 - **Speed**: ~30 seconds per run (API requests only)
 - **Reliability**: Stable API contract, less brittle than web scraping
-- **Docker Image**: ~1.1GB (slimmer base, still includes pandas/streamlit for dashboard)
+- **Docker Image**: ~800MB (slimmer base with core dependencies)
 - **Data Coverage**: ~97.5% (78/80 assignments) - missing 2 assignments, limited teacher comments
 - **Known Issue**: Output format differs slightly from scraper, causing false positive change detection (see TODO_API_FORMATTING.md)
 
@@ -127,6 +125,7 @@ python test_pipeline.py                # Validate components
 
 - Use `uv` for package management
 - Always prefer editing existing files over creating new ones
+- **Docker Compose file**: This project uses `compose.yaml` (not `docker-compose.yml`)
 - Docker Compose uses `pull_policy: build` to avoid duplicate image names
 - Keep project root organized - put tests in `tests/` folder
 - All optimizations require explicit user approval before implementation
