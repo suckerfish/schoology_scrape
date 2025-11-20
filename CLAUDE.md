@@ -111,6 +111,11 @@ python test_pipeline.py                # Validate components
 
 ## Recent Changes
 
+- ✅ **Removed Streamlit dashboard** - Streamlined for scraping/notifications only (2025-11-19)
+  - Deleted streamlit_viewer.py and pages/ directory
+  - Removed grades-dashboard service from compose.yaml
+  - Reduced Docker image size by ~200-300MB
+  - Simplified codebase - focus on core monitoring functionality
 - ✅ **Created api-polling branch** - API-based alternative to web scraping (2025-09-30)
   - Replaced Selenium with Schoology REST API
   - ~6x faster execution (30s vs 3min)

@@ -10,6 +10,7 @@ scrape.log
 *.log
 .DS_Store
 outputs/
+.playwright-mcp/
 
 # Testing
 .pytest_cache/
