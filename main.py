@@ -6,7 +6,6 @@ import logging
 import sys
 from pathlib import Path
 from pipeline.orchestrator import GradePipeline
-from pipeline.error_handling import error_handler
 from shared.config import get_config
 
 def setup_logging():
@@ -31,11 +30,7 @@ def main():
     try:
         # Initialize the pipeline
         pipeline = GradePipeline()
-        
-        # Get status before running
-        status = pipeline.get_pipeline_status()
-        logger.info(f"Pipeline status: {status}")
-        
+
         # Run the complete pipeline
         success = pipeline.run_full_pipeline(download_path='.')
         
@@ -44,11 +39,6 @@ def main():
             sys.exit(0)
         else:
             logger.error("Grade scraping pipeline failed")
-            
-            # Get error summary
-            error_summary = error_handler.get_error_summary()
-            logger.error(f"Error summary: {error_summary}")
-            
             sys.exit(1)
             
     except KeyboardInterrupt:

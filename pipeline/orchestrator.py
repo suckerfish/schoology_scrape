@@ -6,7 +6,6 @@ from typing import Dict, Any, Optional
 from .api_scraper import APIGradeScraper
 from .comparator import GradeComparator
 from .notifier import GradeNotifier
-from dynamodb_manager import DynamoDBManager
 from shared.config import get_config
 from shared.diff_logger import DiffLogger
 
@@ -21,8 +20,6 @@ class GradePipeline:
         self.scraper = APIGradeScraper()
         self.comparator = GradeComparator()
         self.notifier = GradeNotifier()
-        # DynamoDB disabled for local-only storage
-        self.data_service = None
         self.diff_logger = DiffLogger(self.config)
         
         # Ensure data directory exists
@@ -73,11 +70,16 @@ class GradePipeline:
                 status_message = f"Grade monitoring completed successfully. No changes detected. Duration: {pipeline_duration}"
                 self.notifier.send_status_notification(status_message, success=True)
 
-            # Clean up old log files periodically
+            # Clean up old log files and snapshots periodically
             try:
                 self.diff_logger.cleanup_old_logs()
             except Exception as cleanup_error:
                 self.logger.warning(f"Failed to clean up old logs: {cleanup_error}")
+
+            try:
+                self._cleanup_old_snapshots()
+            except Exception as cleanup_error:
+                self.logger.warning(f"Failed to clean up old snapshots: {cleanup_error}")
 
             return True
             
@@ -123,62 +125,39 @@ class GradePipeline:
         return None
     
     def _detect_changes(self, grade_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Detect changes with fallback mechanisms"""
+        """Detect changes using file-based comparison"""
         try:
-            # Use file-based comparison as primary method (DynamoDB method not implemented)
-            # Enable grade_changes_only to only notify on grade changes, not new assignments/due dates/etc
+            # Use file-based comparison (grade changes only)
             self.logger.info("Using file-based change detection (grade changes only)")
             changes = self.comparator.detect_changes_from_file(grade_data, grade_changes_only=True)
             return changes
-            
+
         except Exception as e:
             self.logger.error(f"Error in file-based change detection: {e}")
-            
-            try:
-                # Fallback to data service method (which always returns initial)
-                self.logger.info("Falling back to data service change detection")
-                changes = self.comparator.detect_changes(grade_data)
-                return changes
-                
-            except Exception as e2:
-                self.logger.error(f"Error in fallback change detection: {e2}")
-                
-                # If all else fails, treat as initial data
-                self.logger.warning("Treating data as initial due to comparison failures")
-                return {
-                    'type': 'initial',
-                    'message': 'Data saved (comparison failed)',
-                    'data': grade_data
-                }
+
+            # If comparison fails, treat as initial data
+            self.logger.warning("Treating data as initial due to comparison failure")
+            return {
+                'type': 'initial',
+                'message': 'Data saved (comparison failed)',
+                'data': grade_data
+            }
     
     def _save_grade_data(self, grade_data: Dict[str, Any]) -> bool:
-        """Save grade data to both local file and data service"""
-        success = True
-        
-        # Save to local file
+        """Save grade data to local file"""
         try:
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             local_file = self.data_dir / f'all_courses_data_{timestamp}.json'
-            
+
             with open(local_file, 'w') as f:
                 json.dump(grade_data, f, indent=2)
-            
+
             self.logger.info(f"Grade data saved to local file: {local_file}")
-            
+            return True
+
         except Exception as e:
             self.logger.error(f"Failed to save grade data to local file: {e}")
-            success = False
-        
-        # Save to data service (disabled)
-        if self.data_service is not None:
-            try:
-                snapshot_id = self.data_service.add_entry(grade_data)
-                self.logger.info(f"Grade data saved to data service with ID: {snapshot_id}")
-            except Exception as e:
-                self.logger.error(f"Failed to save grade data to data service: {e}")
-                success = False
-        
-        return success
+            return False
     
     def _save_grade_data_conditional(self, grade_data: Dict[str, Any], changes: Optional[Dict[str, Any]]) -> bool:
         """
@@ -311,51 +290,39 @@ class GradePipeline:
             error_message,
             "All API fetch attempts failed. Please check API credentials and network connectivity."
         )
-    
-    def test_pipeline_components(self) -> Dict[str, bool]:
+
+    def _cleanup_old_snapshots(self, keep_count: int = 30):
         """
-        Test all pipeline components
-        
-        Returns:
-            Dict mapping component names to test results
+        Clean up old JSON snapshots, keeping only the most recent ones
+
+        Args:
+            keep_count: Number of recent snapshots to keep (default: 30)
         """
-        results = {}
-        
-        # Test API scraper (just initialization)
         try:
-            test_scraper = APIGradeScraper()
-            results['api_scraper_init'] = test_scraper.initialize_driver()
-            test_scraper.cleanup()
+            # Get all snapshot files sorted by modification time (newest first)
+            snapshot_files = sorted(
+                self.data_dir.glob('all_courses_data_*.json'),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True
+            )
+
+            if len(snapshot_files) <= keep_count:
+                self.logger.debug(f"Found {len(snapshot_files)} snapshots, no cleanup needed (keeping {keep_count})")
+                return
+
+            # Delete old snapshots beyond the keep count
+            files_to_delete = snapshot_files[keep_count:]
+            deleted_count = 0
+
+            for file_path in files_to_delete:
+                try:
+                    file_path.unlink()
+                    deleted_count += 1
+                    self.logger.debug(f"Deleted old snapshot: {file_path.name}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to delete snapshot {file_path.name}: {e}")
+
+            self.logger.info(f"Cleaned up {deleted_count} old snapshots (kept {keep_count} most recent)")
+
         except Exception as e:
-            self.logger.error(f"API scraper test failed: {e}")
-            results['api_scraper_init'] = False
-        
-        # Test data service
-        try:
-            # Just test if the data service is properly initialized
-            results['data_service'] = self.data_service is not None and hasattr(self.data_service, 'table')
-        except Exception as e:
-            self.logger.error(f"Data service test failed: {e}")
-            results['data_service'] = False
-        
-        # Test notification providers
-        notification_results = self.notifier.test_notifications()
-        for provider, status in notification_results.items():
-            results[f'notification_{provider}'] = status
-        
-        return results
-    
-    def get_pipeline_status(self) -> Dict[str, Any]:
-        """
-        Get current pipeline status and component availability
-        
-        Returns:
-            Dict containing status information
-        """
-        return {
-            'available_notification_providers': self.notifier.get_available_providers(),
-            'data_service_connected': self.data_service is not None,
-            'local_data_directory': str(self.data_dir),
-            'local_data_exists': self.data_dir.exists(),
-            'config_loaded': self.config is not None
-        }
+            self.logger.error(f"Error during snapshot cleanup: {e}")

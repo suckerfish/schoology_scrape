@@ -3,7 +3,6 @@ import json
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 from deepdiff import DeepDiff
-from dynamodb_manager import DynamoDBManager
 from shared.config import get_config
 from shared.diff_logger import DiffLogger
 
@@ -12,52 +11,9 @@ class GradeComparator:
     
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.data_service = DynamoDBManager()
         self.config = get_config()
         self.diff_logger = DiffLogger(self.config)
-    
-    def detect_changes(self, new_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """
-        Compare new data with the latest snapshot to detect changes
-        
-        Args:
-            new_data: New grade data to compare
-            
-        Returns:
-            Dict containing change information, or None if no changes
-        """
-        try:
-            # Get the latest snapshot from the data service
-            # For now, just return None since the DynamoDBManager doesn't have this method
-            # This will treat all comparisons as "initial" data
-            latest_snapshot = None
-            
-            if not latest_snapshot:
-                self.logger.info("No previous snapshot found - treating as initial data")
-                return {
-                    'type': 'initial',
-                    'message': 'Initial grade data captured',
-                    'data': new_data
-                }
-            
-            # Extract the actual data from the snapshot
-            latest_data = latest_snapshot.get('data', {})
-            
-            # Perform deep comparison
-            diff = DeepDiff(latest_data, new_data, ignore_order=True)
-            
-            if diff:
-                self.logger.info("Changes detected in grade data")
-                changes = self._process_changes(diff, latest_data, new_data)
-                return changes
-            else:
-                self.logger.info("No changes detected in grade data")
-                return None
-                
-        except Exception as e:
-            self.logger.error(f"Error detecting changes: {e}")
-            return None
-    
+
     def detect_changes_from_file(self, new_data: Dict[str, Any], grade_changes_only: bool = False) -> Optional[Dict[str, Any]]:
         """
         Compare new data with the latest local file to detect changes

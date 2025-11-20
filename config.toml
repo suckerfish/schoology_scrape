@@ -26,11 +26,6 @@ data_directory = "/app/data"
 # Schoology instance configuration
 base_url = "https://lvjusd.schoology.com/"
 
-[aws]
-# AWS DynamoDB configuration
-region = "us-west-1"
-dynamodb_table_name = "SchoologyGrades"
-
 [notifications]
 # Notification preferences
 email_enabled = true
