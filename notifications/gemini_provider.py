@@ -79,24 +79,30 @@ class GeminiProvider(NotificationProvider):
     def _prepare_analysis_prompt(self, message: NotificationMessage) -> str:
         """Prepare the analysis prompt for Gemini"""
         base_prompt = f"""
-        Describe the grade changes in natural, concise language. Include assignment names and specific grade values.
+        Summarize these grade changes in natural, concise language. Include assignment names and specific grade values.
 
         Title: {message.title}
         Content: {message.content}
 
-        Focus on:
-        - Assignment grade changes (e.g., "Math test: 85/100 → 88/100")
+        What to report:
+        - New assignments that have grades (e.g., "'Chemistry Quiz' now graded: 4.67/8")
+        - Existing grades that changed (e.g., "Math test: 85/100 → 88/100")
         - Missing/Excused/Incomplete status changes (e.g., "'Lab Report' marked as Missing")
         - Teacher comments added/changed (e.g., "Comment added: 'Great improvement!'")
         - Period/course grade changes (e.g., "Period grade now 91%")
 
-        Examples:
-        - "Math test grade improved: 85/100 → 88/100, period grade now 91%"
-        - "'Bill Nye Atoms' assignment now graded: 48/50 (96%)"
-        - "'Lab Report' marked as Missing in Science 7"
-        - "Art project comment added: 'Great work on color theory!'"
+        What NOT to report:
+        - New assignments WITHOUT grades (just empty placeholders)
+        - Due date changes alone
+        - Changes that don't affect grades
 
-        Do NOT mention due dates, new assignments, or non-grade changes. Just state the grade updates factually.
+        Examples:
+        - "Chemistry Quiz now graded: 4.67/8 (58%)"
+        - "Math homework graded: 10/10 (100%)"
+        - "Math test grade improved: 85/100 → 88/100"
+        - "'Lab Report' marked as Missing in Science 7"
+
+        Provide a factual summary of what grades changed or appeared.
         """
 
         # Add any additional context from metadata
