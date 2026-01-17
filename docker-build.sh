@@ -20,7 +20,6 @@ echo "🧪 Testing Docker image..."
 echo "  ✅ Testing Python dependencies..."
 docker compose run --rm schoology-scraper python -c "
 import boto3
-import deepdiff
 import google.generativeai
 print('✅ All Python dependencies loaded successfully')
 "
@@ -28,7 +27,7 @@ print('✅ All Python dependencies loaded successfully')
 # Test 2: Check application can import
 echo "  ✅ Testing application imports..."
 docker compose run --rm schoology-scraper python -c "
-from pipeline.orchestrator import GradePipeline
+from pipeline.orchestrator_v2 import GradePipelineV2
 from pipeline.api_scraper import APIGradeScraper
 from shared.config import get_config
 print('✅ Application imports successful')

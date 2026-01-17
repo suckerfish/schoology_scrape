@@ -5,7 +5,7 @@ Refactored main.py using the new pipeline architecture
 import logging
 import sys
 from pathlib import Path
-from pipeline.orchestrator import GradePipeline
+from pipeline.orchestrator_v2 import GradePipelineV2
 from shared.config import get_config
 
 def setup_logging():
@@ -29,7 +29,7 @@ def main():
     
     try:
         # Initialize the pipeline
-        pipeline = GradePipeline()
+        pipeline = GradePipelineV2()
 
         # Run the complete pipeline
         success = pipeline.run_full_pipeline(download_path='.')

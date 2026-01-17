@@ -309,28 +309,14 @@ uv run python test_new_system.py
 - Uses `shared/id_comparator.py` (ID-based)
 - Saves state to `data/grades.db` (SQLite)
 
-### To Switch to New System
+### Current Implementation
 
-1. **Test thoroughly** using `test_new_system.py`
-2. **Update main.py**:
-   ```python
-   # OLD:
-   from pipeline.orchestrator import GradePipeline
-
-   # NEW:
-   from pipeline.orchestrator_v2 import GradePipelineV2 as GradePipeline
-   ```
-3. **Update Docker** if needed (no changes required, SQLite is bundled)
-
-### Rollback Plan
-
-If issues arise, simply revert main.py change:
-
-```bash
-git checkout main -- main.py
+The ID-based system is now active in `main.py`:
+```python
+from pipeline.orchestrator_v2 import GradePipelineV2
 ```
 
-The old JSON snapshots remain untouched, so you can switch back anytime.
+State is stored in `data/grades.db` (SQLite). The old DeepDiff-based system has been removed.
 
 ## Performance Comparison
 
