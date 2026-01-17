@@ -14,6 +14,7 @@ from shared.grade_store import GradeStore
 from shared.id_comparator import IDComparator, ChangeReport
 from pipeline.notifier import GradeNotifier
 from shared.config import get_config
+from shared.change_logger import ChangeLogger
 
 
 class GradePipelineV2:
@@ -33,6 +34,7 @@ class GradePipelineV2:
         self.store = GradeStore()
         self.comparator = IDComparator(self.store)
         self.notifier = GradeNotifier()
+        self.change_logger = ChangeLogger(self.config)
 
         # Ensure data directory exists
         self.data_dir = Path('data')
@@ -67,15 +69,29 @@ class GradePipelineV2:
             pipeline_duration = datetime.datetime.now() - pipeline_start_time
             self.logger.info(f"Pipeline completed successfully in {pipeline_duration}")
 
+            notification_results = {}
             if report.has_changes():
                 self.logger.info("Step 3: Sending change notification")
-                notification_success = self._send_change_notification(report, pipeline_duration)
+                notification_success, notification_results = self._send_change_notification(report, pipeline_duration)
                 if not notification_success:
                     self.logger.warning("Failed to send change notification")
             else:
                 self.logger.info("Step 3: Sending status notification - no changes detected")
                 status_message = f"Grade monitoring completed successfully. {report.summary()}. Duration: {pipeline_duration}"
                 self.notifier.send_status_notification(status_message, success=True)
+
+            # Log change report to JSON history
+            self.change_logger.log_change_report(
+                report,
+                notification_sent=report.has_changes(),
+                notification_results=notification_results
+            )
+
+            # Periodic cleanup of old logs
+            try:
+                self.change_logger.cleanup_old_logs()
+            except Exception as e:
+                self.logger.warning(f"Log cleanup failed: {e}")
 
             return True
 
@@ -134,7 +150,7 @@ class GradePipelineV2:
                 is_initial=True
             )
 
-    def _send_change_notification(self, report: ChangeReport, pipeline_duration) -> bool:
+    def _send_change_notification(self, report: ChangeReport, pipeline_duration) -> tuple[bool, dict]:
         """
         Send notification about detected changes.
 
@@ -143,7 +159,7 @@ class GradePipelineV2:
             pipeline_duration: How long the pipeline took to run
 
         Returns:
-            bool: True if notification was sent successfully
+            Tuple of (success, notification_results dict)
         """
         try:
             # Format the changes for notification
@@ -182,11 +198,11 @@ class GradePipelineV2:
             else:
                 self.logger.warning("Failed to send change notification")
 
-            return notification_success
+            return notification_success, notification_results
 
         except Exception as e:
             self.logger.error(f"Error sending change notification: {e}", exc_info=True)
-            return False
+            return False, {}
 
     def _handle_fetch_failure(self):
         """Handle API fetch failure with appropriate notifications"""

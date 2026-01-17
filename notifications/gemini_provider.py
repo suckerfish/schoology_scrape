@@ -1,81 +1,73 @@
-import google.generativeai as genai
-from typing import Dict, Any
-from absl import logging as absl_logging
+from google import genai
+from typing import Dict, Any, Optional
 from .base import NotificationProvider, NotificationMessage
 
-# Suppress absl logging
-absl_logging.set_verbosity(absl_logging.ERROR)
 
 class GeminiProvider(NotificationProvider):
     """Gemini AI notification provider - generates AI analysis of grade changes"""
-    
+
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
-        self.llm_model = None
-        self._initialize_model()
-    
-    def _initialize_model(self):
-        """Initialize the Gemini model"""
+        self.client: Optional[genai.Client] = None
+        self._initialize_client()
+
+    def _initialize_client(self):
+        """Initialize the Gemini client"""
         if self.is_available():
             try:
-                genai.configure(api_key=self.config['api_key'])
-                self.llm_model = genai.GenerativeModel('gemini-2.5-flash')
+                self.client = genai.Client(api_key=self.config['api_key'])
             except Exception as e:
-                self.logger.error(f"Failed to initialize Gemini model: {e}")
-    
+                self.logger.error(f"Failed to initialize Gemini client: {e}")
+
     @property
     def provider_name(self) -> str:
         return "gemini"
-    
+
     def validate_config(self) -> bool:
         """Validate Gemini configuration"""
         return 'api_key' in self.config and bool(self.config['api_key'])
-    
+
     def is_available(self) -> bool:
         """Check if Gemini is available"""
         return self.validate_config()
-    
+
     def send(self, message: NotificationMessage) -> bool:
         """Generate AI analysis using Gemini"""
         if not self.is_available():
             self.logger.error("Gemini provider not properly configured")
             return False
-        
-        if not self.llm_model:
-            self._initialize_model()
-            if not self.llm_model:
-                self.logger.error("Failed to initialize Gemini model")
+
+        if not self.client:
+            self._initialize_client()
+            if not self.client:
+                self.logger.error("Failed to initialize Gemini client")
                 return False
-        
+
         try:
-            # Define safety settings
-            safety_settings = {
-                'HARASSMENT': 'block_none',
-                'SEXUALLY_EXPLICIT': 'block_none',
-                'HATE_SPEECH': 'block_none'
-            }
-            
             # Prepare the prompt for grade analysis
             prompt = self._prepare_analysis_prompt(message)
-            
-            response = self.llm_model.generate_content(prompt, safety_settings=safety_settings)
-            
+
+            response = self.client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=prompt
+            )
+
             if response and response.text:
                 # Store the analysis in metadata for other providers to use
                 if not message.metadata:
                     message.metadata = {}
                 message.metadata['ai_analysis'] = response.text
-                
+
                 self.logger.info("Gemini analysis generated successfully")
                 return True
             else:
                 self.logger.warning("Gemini returned empty response")
                 return False
-                
+
         except Exception as e:
             self.logger.error(f"Failed to generate Gemini analysis: {e}")
             return False
-    
+
     def _prepare_analysis_prompt(self, message: NotificationMessage) -> str:
         """Prepare the analysis prompt for Gemini"""
         base_prompt = f"""
@@ -86,7 +78,7 @@ class GeminiProvider(NotificationProvider):
 
         What to report:
         - New assignments that have grades (e.g., "'Chemistry Quiz' now graded: 4.67/8")
-        - Existing grades that changed (e.g., "Math test: 85/100 → 88/100")
+        - Existing grades that changed (e.g., "Math test: 85/100 -> 88/100")
         - Missing/Excused/Incomplete status changes (e.g., "'Lab Report' marked as Missing")
         - Teacher comments added/changed (e.g., "Comment added: 'Great improvement!'")
         - Period/course grade changes (e.g., "Period grade now 91%")
@@ -99,7 +91,7 @@ class GeminiProvider(NotificationProvider):
         Examples:
         - "Chemistry Quiz now graded: 4.67/8 (58%)"
         - "Math homework graded: 10/10 (100%)"
-        - "Math test grade improved: 85/100 → 88/100"
+        - "Math test grade improved: 85/100 -> 88/100"
         - "'Lab Report' marked as Missing in Science 7"
 
         Provide a factual summary of what grades changed or appeared.
@@ -113,27 +105,24 @@ class GeminiProvider(NotificationProvider):
                 base_prompt += f"\n\nCourse Information: {message.metadata['course_info']}"
 
         return base_prompt
-    
-    def ask(self, question: str) -> str:
+
+    def ask(self, question: str) -> Optional[str]:
         """Direct question interface (for backward compatibility)"""
         if not self.is_available():
             return None
-        
-        if not self.llm_model:
-            self._initialize_model()
-            if not self.llm_model:
+
+        if not self.client:
+            self._initialize_client()
+            if not self.client:
                 return None
-        
+
         try:
-            safety_settings = {
-                'HARASSMENT': 'block_none',
-                'SEXUALLY_EXPLICIT': 'block_none',
-                'HATE_SPEECH': 'block_none'
-            }
-            
-            response = self.llm_model.generate_content(question, safety_settings=safety_settings)
+            response = self.client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=question
+            )
             return response.text if response else None
-            
+
         except Exception as e:
             self.logger.error(f"Failed to get Gemini response: {e}")
             return None

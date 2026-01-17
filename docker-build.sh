@@ -20,7 +20,7 @@ echo "🧪 Testing Docker image..."
 echo "  ✅ Testing Python dependencies..."
 docker compose run --rm schoology-scraper python -c "
 import boto3
-import google.generativeai
+from google import genai
 print('✅ All Python dependencies loaded successfully')
 "
 
