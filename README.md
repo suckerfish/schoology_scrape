@@ -1,55 +1,54 @@
 # Schoology Grade Scraper
 
-An automated grade monitoring system that scrapes student grades from Schoology LMS, tracks changes over time, and provides intelligent notifications when grades are updated.
-
-> **Recommended Branch**: Use `docker-containerization` branch for the latest stable deployment with Docker support.
+Automated grade monitoring system that polls Schoology via API, detects changes using ID-based tracking, and sends notifications when grades are updated.
 
 ## What It Does
 
-- **Automated Grade Tracking**: Logs into Schoology via Google OAuth and extracts all course grades and assignments
-- **Change Detection**: Compares current grades with historical snapshots to detect new grades, assignment additions, and due date changes
-- **Smart Notifications**: Sends alerts via Pushover, email, and AI-generated summaries when changes are detected
-- **Historical Analysis**: Stores grade data locally and in AWS DynamoDB for trend analysis and reporting
+- **Automated Grade Tracking**: Fetches grades via Schoology REST API on a configurable schedule
+- **ID-Based Change Detection**: Compares assignments by unique ID using SQLite for fast, reliable change detection
+- **Smart Notifications**: Sends alerts via Pushover, email, and AI-generated summaries when grades change
+- **Historical Tracking**: Stores grade state in SQLite database for trend analysis
 
 ## Key Features
 
-### Intelligent Monitoring
-- **Flexible Scheduling**: Configure exact run times (e.g., "8:00,20:00" for 8am and 8pm daily)
-- **Change Detection**: Uses DeepDiff to identify exactly what changed between grade snapshots
-- **Priority-Based Alerts**: Distinguishes between actual grade changes and administrative updates
+### Efficient Monitoring
+- **API-Based**: Direct REST API calls (~1 min per run vs 3+ min for browser automation)
+- **ID-Based Comparison**: Fast O(1) lookups by assignment ID, no false positives from formatting differences
+- **Flexible Scheduling**: Configure exact run times (e.g., "08:00,20:00" for 8am and 8pm daily)
 
 ### Multi-Channel Notifications
-- **Pushover**: Instant mobile notifications for grade changes
-- **Email**: Detailed grade reports sent to configured recipients
-- **AI Analysis**: Gemini AI provides natural language summaries of changes
-- **Structured Logging**: JSON-formatted change logs for analysis and debugging
+- **Pushover**: Instant mobile notifications
+- **Email**: Detailed grade reports
+- **AI Analysis**: Gemini AI provides natural language summaries
+- **JSON Logging**: Structured change logs in `logs/grade_changes.log`
 
 ### Robust Architecture
-- **Plugin-Based Notifications**: Easy to add new notification providers
-- **Dual Storage**: Local JSON files + AWS DynamoDB for redundancy
-- **Comprehensive Error Handling**: Retry logic, circuit breakers, and graceful failure recovery
-- **Docker Deployment**: Containerized with ARM64/x86_64 support for VPS deployment
+- **SQLite State Tracking**: Persistent storage in `data/grades.db`
+- **Plugin-Based Notifications**: Easy to add new providers
+- **Comprehensive Error Handling**: Retry logic and graceful failure recovery
+- **Docker Deployment**: Containerized with ARM64/x86_64 support
 
 ## Quick Start
 
 ### Prerequisites
 - Docker and Docker Compose
-- Google account with Schoology access
-- AWS account for DynamoDB (optional but recommended)
+- Schoology API credentials (from school admin)
+- AWS account for DynamoDB (optional)
 
 ### Setup
+
 1. **Clone the repository**:
    ```bash
    git clone <repository-url>
    cd schoology_scrape
-   git checkout docker-containerization
    ```
 
 2. **Configure environment variables** in `.env`:
    ```bash
-   # Schoology credentials
-   evan_google=your-email@domain.com
-   evan_google_pw=your-password
+   # Schoology API credentials (required)
+   SCHOOLOGY_API_KEY=your-api-key
+   SCHOOLOGY_API_SECRET=your-api-secret
+   SCHOOLOGY_DOMAIN=yourdomain.schoology.com
 
    # Scheduling (optional, defaults to 8am/8pm)
    SCRAPE_TIMES=08:00,20:00
@@ -66,14 +65,9 @@ An automated grade monitoring system that scrapes student grades from Schoology 
 
 3. **Deploy with Docker**:
    ```bash
-   # Build and start continuous monitoring
-   docker compose up -d
-
-   # View logs
-   docker compose logs -f
-
-   # Manual single run
-   docker compose run --rm --profile manual schoology-scraper
+   docker compose up -d      # Start monitoring
+   docker compose logs -f    # View logs
+   docker compose down       # Stop
    ```
 
 ## Configuration
@@ -81,14 +75,14 @@ An automated grade monitoring system that scrapes student grades from Schoology 
 ### Scheduling
 Set `SCRAPE_TIMES` environment variable with 24-hour format times:
 ```bash
-SCRAPE_TIMES=08:00,20:00      # Twice daily
-SCRAPE_TIMES=21:00            # Once daily at 9 PM
+SCRAPE_TIMES=08:00,20:00       # Twice daily
+SCRAPE_TIMES=21:00             # Once daily at 9 PM
 SCRAPE_TIMES=07:00,13:00,19:00 # Three times daily
 ```
 
 ### Application Settings
 Modify `config.toml` for:
-- Cache settings and retry logic
+- Retry logic and timeouts
 - AWS DynamoDB configuration
 - Logging preferences and retention
 - Notification provider settings
@@ -101,64 +95,46 @@ Course → Periods → Categories → Assignments
 ```
 
 Each assignment contains:
-- **Grade**: Current score (e.g., "88/100", "A-", "Not graded")
+- **Assignment ID**: Unique identifier from Schoology
+- **Grade**: Points earned/max (e.g., "88/100")
+- **Exception**: Missing, Excused, or Incomplete status
+- **Comment**: Teacher feedback
 - **Due Date**: Assignment deadline
-- **Comments**: Teacher feedback
-- **Title**: Assignment name
 
-## Storage and Logging
+## Storage
 
-### Local Files
-- **`data/all_courses_data_YYYYMMDD_HHMMSS.json`**: Daily grade snapshots
-- **`logs/grade_changes.log`**: Structured change detection logs
-- **`logs/raw_diffs.log`**: Debug-level diff data (optional)
+### SQLite Database
+- **`data/grades.db`**: Current grade state with full history
+- Fast ID-based lookups for change detection
+- See `ID_BASED_SYSTEM.md` for schema details
 
-### AWS DynamoDB
-- Historical grade snapshots stored with timestamps
-- Provides redundancy and enables cross-device access
+### Logs
+- **`logs/grade_changes.log`**: JSON-formatted change history
+- **`grade_scraper.log`**: Application logs
+
+### AWS DynamoDB (Optional)
+- Historical snapshots for cross-device access
 - Configurable via `config.toml`
-
-### Log Analysis
-Change logs include:
-- Change summaries and detailed breakdowns
-- Notification delivery status per provider
-- Change classification (grade changes vs. administrative updates)
-- Priority levels for filtering important changes
-
-## Notification Examples
-
-### Grade Change Alert
-```
-Changes detected: 1 value(s) changed
-
-Detailed changes:
-• Math 7 test grade: 85/100 → 88/100, period grade now 91%
-
---- AI Analysis ---
-Math test grade improved from 85/100 to 88/100, boosting the overall period grade to 91%.
-```
-
-### New Assignment Alert
-```
-Changes detected: 1 list item(s) added
-
---- AI Analysis ---
-'Bill Nye Atoms' assignment added to Science 7 (due 9/19/25 3:59pm, ungraded)
-```
 
 ## Architecture
 
 ### Core Components
-- **Scraper** (`pipeline/scraper.py`): Selenium-based data extraction
-- **Comparator** (`pipeline/comparator.py`): DeepDiff change detection
+- **API Fetcher** (`api/fetch_grades_v2.py`): Schoology REST API client
+- **ID Comparator** (`shared/id_comparator.py`): Change detection by assignment ID
+- **Grade Store** (`shared/grade_store.py`): SQLite state management
 - **Notifications** (`notifications/`): Plugin-based alert system
-- **Storage** (`dynamodb_manager.py`): Dual local/cloud persistence
+- **Orchestrator** (`pipeline/orchestrator_v2.py`): Pipeline coordination
 
-### Error Handling
-- **Retry Logic**: Exponential backoff for transient failures
-- **Circuit Breakers**: Protect against cascading failures
-- **Graceful Degradation**: Continue operation if individual components fail
-- **Comprehensive Logging**: Track errors and system health
+### Data Flow
+```
+Schoology API → APIGradeFetcherV2 → GradeData (Pydantic models)
+                                          ↓
+                                   IDComparator
+                                          ↓
+                                   GradeStore (SQLite)
+                                          ↓
+                                   ChangeReport → Notifications
+```
 
 ## Development
 
@@ -170,44 +146,39 @@ uv pip install -r requirements.txt
 # Run single scrape
 python main.py
 
-# Test components
-python test_pipeline.py
+# Run tests
+python -m pytest tests/test_id_comparator.py -v
 ```
 
-### Adding Notification Providers
-Extend the `NotificationProvider` base class in `notifications/base.py`:
+### Testing
+```bash
+# Unit tests (8 tests)
+python -m pytest tests/test_id_comparator.py -v
 
-```python
-class CustomProvider(NotificationProvider):
-    @property
-    def provider_name(self) -> str:
-        return "custom"
-
-    def send(self, message: NotificationMessage) -> bool:
-        # Implementation
-        pass
+# Integration test
+python test_new_system.py
 ```
 
 ## Troubleshooting
 
 ### Common Issues
-- **Authentication**: Verify Google credentials in `.env`
-- **Permissions**: Check Docker volume permissions for data directory
-- **Scheduling**: Ensure `SCRAPE_TIMES` format is correct (24-hour, comma-separated)
-- **Dependencies**: Use `docker-containerization` branch for latest fixes
+
+- **401 Unauthorized**: Check `SCHOOLOGY_API_KEY` and `SCHOOLOGY_API_SECRET` in `.env`
+- **403 Forbidden on assignments**: Some assignments have permission restrictions (normal)
+- **Section ID mismatch warnings**: Handled automatically with fuzzy matching
+
+### Database Reset
+```bash
+rm data/grades.db  # Next run recreates database
+```
 
 ### Monitoring
 ```bash
-# Check container status
-docker compose ps
-
-# View real-time logs
-docker compose logs -f
-
-# Debug scheduling
-docker compose exec schoology-scraper env | grep SCRAPE_TIMES
+docker compose ps              # Container status
+docker compose logs -f         # Real-time logs
+sqlite3 data/grades.db ".tables"  # Check database
 ```
 
 ## License
 
-This project is for educational purposes. Please ensure compliance with your institution's terms of service when using automated tools to access their systems.
+This project is for educational purposes. Please ensure compliance with your institution's terms of service.

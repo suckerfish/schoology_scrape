@@ -4,133 +4,97 @@ Developer guidance for Claude Code when working with this Schoology grade scrape
 
 ## Project Overview
 
-Automated grade monitoring system: scrapes Schoology → detects changes → sends notifications → stores history.
+Automated grade monitoring system: polls Schoology API → detects changes via ID-based comparison → sends notifications → stores state in SQLite.
 
 ## Architecture
 
-**Core Pipeline**: Data Fetcher → `pipeline/comparator.py` → `notifications/` → `dynamodb_manager.py`
-
-**Branches:**
-- `docker-containerization` - Selenium-based web scraping (stable, production)
-- `api-polling` - Schoology API-based polling (faster, experimental)
+**Core Pipeline**: `api/fetch_grades_v2.py` → `shared/id_comparator.py` → `notifications/` → `shared/grade_store.py`
 
 **Key Directories**:
-- `pipeline/` - Data extraction, change detection, orchestration
-- `api/` - Schoology API client and fetcher (api-polling branch only)
+- `api/` - Schoology API client and grade fetcher
+- `pipeline/` - Orchestration (`orchestrator_v2.py`)
+- `shared/` - Core modules (models, comparator, store, config)
 - `notifications/` - Plugin-based alerts (Pushover, Email, Gemini AI)
-- `data/` - Local JSON snapshots (`all_courses_data_YYYYMMDD_HHMMSS.json`)
-- `logs/` - Change tracking (`grade_changes.log`, `raw_diffs.log`)
+- `data/` - SQLite database (`grades.db`) and logs
+- `logs/` - Change tracking (`grade_changes.log`)
+- `tests/` - Unit tests
 
 ## Configuration
 
 **Environment variables** (`.env`):
-
-**For docker-containerization branch (Selenium scraping):**
-- `evan_google`/`evan_google_pw` - Schoology login credentials
+- `SCHOOLOGY_API_KEY` - API key from Schoology
+- `SCHOOLOGY_API_SECRET` - API secret from Schoology
+- `SCHOOLOGY_DOMAIN` - Your Schoology domain (e.g., lvjusd.schoology.com)
 - `SCRAPE_TIMES` - Run schedule ("08:00,20:00" for 8am/8pm daily)
-- `aws_key`/`aws_secret` - DynamoDB storage
+- `aws_key`/`aws_secret` - DynamoDB storage (optional)
 - `pushover_token`/`pushover_userkey` - Mobile notifications
 - `gemini_key` - AI analysis
 
-**For api-polling branch (API-based):**
-- `SCHOOLOGY_API_KEY` - API key from Schoology developer console
-- `SCHOOLOGY_API_SECRET` - API secret from Schoology developer console
-- `SCHOOLOGY_DOMAIN` - Your Schoology domain (e.g., lvjusd.schoology.com)
-- `SCRAPE_TIMES` - Run schedule (same as above)
-- `aws_key`/`aws_secret` - DynamoDB storage (same as above)
-- `pushover_token`/`pushover_userkey` - Mobile notifications (same as above)
-- `gemini_key` - AI analysis (same as above)
+**App settings** (`config.toml`): retries, logging, AWS region
 
-**App settings** (`config.toml`): cache, retries, logging, AWS region
+## Data Model
 
-## Data Structure
-
-```
-Course → Periods → Categories → Assignments
+```python
+GradeData → Section → Period → Category → Assignment
 ```
 
-Each assignment: `{title, grade, due_date, comment}`
+Each assignment has: `assignment_id`, `title`, `earned_points`, `max_points`, `exception`, `comment`, `due_date`
+
+State stored in SQLite (`data/grades.db`) with tables: `snapshots`, `sections`, `periods`, `categories`, `assignments`
 
 ## Essential Commands
 
-**Docker deployment** (primary):
+**Docker deployment**:
 ```bash
-docker compose up -d                    # Start monitoring
-docker compose logs -f                 # View logs
-docker compose down                    # Stop
+docker compose up -d        # Start monitoring
+docker compose logs -f      # View logs
+docker compose down         # Stop
 ```
-
-**Note**: This repository is for development only. Production deployment runs from a separate location via git pull.
 
 **Local development**:
 ```bash
-uv pip install -r requirements.txt     # Install deps
-python main.py                         # Single run
-```
-
-**Testing**:
-```bash
-python test_pipeline.py                # Validate components
+uv pip install -r requirements.txt  # Install deps
+python main.py                      # Single run
+python -m pytest tests/ -v          # Run tests
 ```
 
 ## Key Implementation Details
 
+- **Data Source**: Schoology REST API with OAuth 1.0a (`api/fetch_grades_v2.py`)
+- **Change Detection**: ID-based comparison using SQLite (`shared/id_comparator.py`)
+- **State Storage**: SQLite database (`shared/grade_store.py`)
+- **Models**: Pydantic models with type validation (`shared/models.py`)
+- **Logging**: JSON change logs (`shared/change_logger.py`)
 - **Scheduling**: Continuous Docker container sleeps until next `SCRAPE_TIMES`
-- **Change Detection**: DeepDiff compares snapshots, triggers notifications only on changes
-- **Storage**: Dual persistence (local JSON + DynamoDB) for redundancy
 - **Notifications**: Plugin system - providers auto-load based on available credentials
-- **Error Handling**: Retry logic with exponential backoff, circuit breakers
-- **Docker**: ARM64/x86_64 support, non-root execution, automatic permissions
-
-### Branch-Specific Implementation
-
-**docker-containerization branch:**
-- **Data Source**: Selenium WebDriver with Chromium browser
-- **Method**: Automated web scraping via Google OAuth login
-- **Speed**: ~2-3 minutes per run (browser automation overhead)
-- **Reliability**: Subject to UI changes, requires full browser stack
-- **Docker Image**: ~500MB with Chromium + dependencies
-- **Data Coverage**: 100% of visible grade data including teacher comments
-
-**api-polling branch:**
-- **Data Source**: Schoology REST API with OAuth 1.0a authentication
-- **Method**: Direct API calls, no browser required
-- **Speed**: ~30 seconds per run (API requests only)
-- **Reliability**: Stable API contract, less brittle than web scraping
-- **Docker Image**: ~800MB (slimmer base with core dependencies)
-- **Data Coverage**: ~97.5% (78/80 assignments) - missing 2 assignments, limited teacher comments
-- **Known Issue**: Output format differs slightly from scraper, causing false positive change detection (see TODO_API_FORMATTING.md)
 
 ## Notification Flow
 
-1. **Comparator** detects changes → formats message
-2. **Notification Manager** loads available providers
-3. **Gemini Provider** generates AI analysis → adds to metadata
-4. **Other providers** (Pushover, Email) send alerts using analysis
-5. **Diff Logger** records results in structured JSON
+1. **Orchestrator** runs pipeline → fetches grades via API
+2. **IDComparator** compares against SQLite state → generates ChangeReport
+3. **ChangeLogger** writes JSON to `logs/grade_changes.log`
+4. **Notification Manager** loads available providers
+5. **Gemini Provider** generates AI analysis → adds to metadata
+6. **Other providers** (Pushover, Email) send alerts
 
 ## Recent Changes
 
-- ✅ **Removed Streamlit dashboard** - Streamlined for scraping/notifications only (2025-11-19)
-  - Deleted streamlit_viewer.py and pages/ directory
-  - Removed grades-dashboard service from compose.yaml
-  - Reduced Docker image size by ~200-300MB
-  - Simplified codebase - focus on core monitoring functionality
-- ✅ **Created api-polling branch** - API-based alternative to web scraping (2025-09-30)
-  - Replaced Selenium with Schoology REST API
-  - ~6x faster execution (30s vs 3min)
-  - Removed Chromium dependencies, slimmer base image
-  - 97.5% data coverage, missing some comments
-  - **TODO**: Fix format mismatches causing false positive notifications
-- ✅ **Updated Gemini prompt** to Option 1E style (natural, concise)
-- ✅ **Fixed title** from "Grade changes detected" → "Changes detected"
-- ✅ **Removed redundant** SCHEDULING.md file
+- Migrated to ID-based change detection (replaced DeepDiff)
+- SQLite state storage (replaced JSON snapshot comparison)
+- New Gemini SDK (`google-genai` replacing deprecated `google-generativeai`)
+- Simplified to single branch (main)
+- Removed Selenium/browser scraping (API-only now)
 
 ## Development Notes
 
 - Use `uv` for package management
 - Always prefer editing existing files over creating new ones
 - **Docker Compose file**: This project uses `compose.yaml` (not `docker-compose.yml`)
-- Docker Compose uses `pull_policy: build` to avoid duplicate image names
 - Keep project root organized - put tests in `tests/` folder
 - All optimizations require explicit user approval before implementation
+
+## Known Limitations
+
+- ~5 assignments return 403 Forbidden (Schoology API permission issue)
+- Section ID offset matching sometimes needed (handled automatically)
+- Teacher comments limited compared to web scraping

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This branch implements a complete replacement for the DeepDiff-based change detection system with a modern, efficient ID-based approach using SQLite for state tracking.
+This document describes the ID-based change detection system that uses SQLite for efficient state tracking.
 
 ## Why the Change?
 
@@ -295,28 +295,18 @@ uv run python test_new_system.py
 ✓ test_notification_formatting - Formats messages correctly
 ```
 
-## Migration Path
+## Current Implementation
 
-### Current State (main branch)
-
-- Uses `pipeline/orchestrator.py`
-- Uses `pipeline/comparator.py` (DeepDiff)
-- Saves snapshots to `data/all_courses_data_*.json`
-
-### New System (this branch)
-
-- Uses `pipeline/orchestrator_v2.py`
-- Uses `shared/id_comparator.py` (ID-based)
-- Saves state to `data/grades.db` (SQLite)
-
-### Current Implementation
-
-The ID-based system is now active in `main.py`:
+The ID-based system is active in `main.py`:
 ```python
 from pipeline.orchestrator_v2 import GradePipelineV2
 ```
 
-State is stored in `data/grades.db` (SQLite). The old DeepDiff-based system has been removed.
+Key components:
+- `pipeline/orchestrator_v2.py` - Pipeline orchestrator
+- `shared/id_comparator.py` - Change detection
+- `shared/grade_store.py` - SQLite state storage
+- `data/grades.db` - SQLite database
 
 ## Performance Comparison
 
@@ -389,6 +379,4 @@ SELECT * FROM snapshots ORDER BY id DESC LIMIT 1;
 
 ## Questions?
 
-This system is production-ready and thoroughly tested. The architecture is cleaner, faster, and more maintainable than the DeepDiff approach.
-
-Ready to merge once approved!
+This system is production-ready and thoroughly tested. The architecture is cleaner, faster, and more maintainable than the previous DeepDiff approach.

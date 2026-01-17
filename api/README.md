@@ -1,87 +1,51 @@
 # Schoology API Module
 
-Alternative to web scraping using Schoology's official REST API.
+REST API client for fetching grade data from Schoology.
 
 ## Setup
 
 1. **Get API credentials** from Schoology (requires school admin):
    - Log into Schoology as admin
-   - Go to App Center → School App Management → API Keys
+   - Go to Tools → School Management → API
    - Create new API key/secret pair
 
 2. **Add credentials to `.env`**:
    ```bash
    SCHOOLOGY_API_KEY=your-api-key
    SCHOOLOGY_API_SECRET=your-api-secret
-   SCHOOLOGY_DOMAIN=lvjusd.schoology.com
+   SCHOOLOGY_DOMAIN=yourdomain.schoology.com
    ```
-
-3. **Install dependencies**:
-   ```bash
-   uv pip install requests-oauthlib
-   ```
-
-## Usage
-
-### Fetch Grade Data
-
-```bash
-cd api/
-python fetch_grades.py
-```
-
-This fetches all grade data via API and saves to `data/api_grades_YYYYMMDD_HHMMSS.json` in the same format as the scraper output.
-
-### Compare API vs Scraper Data
-
-```bash
-cd api/
-python compare_data.py ../data/all_courses_data_20250310_080030.json ../data/api_grades_20250330_100000.json
-```
-
-Generates detailed comparison report showing:
-- Missing assignments in either dataset
-- Grade mismatches
-- Comment differences (critical for notifications)
-- Due date differences
-
-Report saved to `data/api_scraper_comparison.json`
 
 ## Files
 
 - **`client.py`** - Schoology API client with OAuth 1.0a authentication
-- **`fetch_grades.py`** - Fetch and structure grade data matching scraper format
-- **`compare_data.py`** - Compare API data vs scraper data to identify deltas
+- **`fetch_grades.py`** - Legacy grade fetcher (dict-based output)
+- **`fetch_grades_v2.py`** - Current grade fetcher (Pydantic models with IDs)
 
 ## API Endpoints Used
-
-Based on research in `/Users/chad/Documents/PythonProject/schoology_api/`:
 
 - `/users/me` - Get current user ID
 - `/users/{user_id}/sections` - Get enrolled courses
 - `/users/{user_id}/grades` - Get all grades with timestamps
-- `/sections/{section_id}/assignments` - Get assignment details (titles, due dates)
-- `/sections/{section_id}/assignments/{assignment_id}/comments` - Get teacher comments
+- `/sections/{section_id}/assignments` - Get assignment details
 - `/sections/{section_id}/grading_categories` - Get category names and weights
 
-## Key Differences: API vs Scraper
+## Usage
 
-### Advantages of API:
-- ✅ Faster (direct REST calls vs browser automation)
-- ✅ More reliable (no CAPTCHA, session timeouts, or UI changes)
-- ✅ Structured JSON data (no HTML parsing)
-- ✅ Timestamps for when grades were posted (change detection)
-- ✅ Official interface (won't break)
+The main entry point is `fetch_grades_v2.py` which returns Pydantic models:
 
-### Potential Issues:
-- ⚠️  Teacher comments may not be available via API (field exists but often null)
-- ⚠️  Requires API credentials from school admin
-- ⚠️  Some historical assignments might not be returned
+```python
+from api.fetch_grades_v2 import APIGradeFetcherV2
 
-## Next Steps
+fetcher = APIGradeFetcherV2()
+grade_data = fetcher.fetch_all_grades()  # Returns GradeData model
 
-After running comparison:
-1. Review `data/api_scraper_comparison.json` for critical deltas
-2. If comments are missing, may need hybrid approach (API for grades, scraper for comments)
-3. If API data is sufficient, can replace scraper with API client
-4. Update pipeline to use API client instead of Playwright driver
+for section in grade_data.sections:
+    print(f"{section.course_title}: {len(section.periods)} periods")
+```
+
+## Known Limitations
+
+- Some assignments return 403 Forbidden (permission restrictions)
+- Section IDs from grades endpoint sometimes differ from enrollments (handled with fuzzy matching)
+- Teacher comments less available than web scraping
