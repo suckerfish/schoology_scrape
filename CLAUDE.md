@@ -29,6 +29,7 @@ Automated grade monitoring system: polls Schoology API → detects changes via I
 - `aws_key`/`aws_secret` - DynamoDB storage (optional)
 - `pushover_token`/`pushover_userkey` - Mobile notifications
 - `gemini_key` - AI analysis
+- `HEALTHCHECKS_URL` - Uptime monitoring (pings on each run)
 
 **App settings** (`config.toml`): retries, logging, AWS region
 
@@ -79,6 +80,8 @@ python -m pytest tests/ -v          # Run tests
 
 ## Recent Changes
 
+- Added healthchecks.io integration for uptime monitoring
+- Removed "no changes" status notifications (only notifies on actual grade changes)
 - Migrated to ID-based change detection (replaced DeepDiff)
 - SQLite state storage (replaced JSON snapshot comparison)
 - New Gemini SDK (`google-genai` replacing deprecated `google-generativeai`)

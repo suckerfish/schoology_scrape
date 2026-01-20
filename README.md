@@ -61,6 +61,9 @@ Automated grade monitoring system that polls Schoology via API, detects changes 
    pushover_token=your-pushover-app-token
    pushover_userkey=your-pushover-user-key
    gemini_key=your-google-gemini-api-key
+
+   # Uptime monitoring (optional, recommended)
+   HEALTHCHECKS_URL=https://hc-ping.com/your-uuid-here
    ```
 
 3. **Deploy with Docker**:
@@ -178,6 +181,16 @@ docker compose ps              # Container status
 docker compose logs -f         # Real-time logs
 sqlite3 data/grades.db ".tables"  # Check database
 ```
+
+### Uptime Monitoring (Healthchecks.io)
+
+The scraper pings healthchecks.io on each run to confirm it's working. If pings stop, you get alerted.
+
+1. Create a free account at [healthchecks.io](https://healthchecks.io)
+2. Create a check with period matching your `SCRAPE_TIMES` interval
+3. Add the ping URL to `.env`: `HEALTHCHECKS_URL=https://hc-ping.com/your-uuid`
+
+Notifications are only sent when grades change - healthchecks.io confirms the scraper is running even when there are no changes.
 
 ## License
 
