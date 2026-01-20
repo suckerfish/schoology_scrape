@@ -5,7 +5,7 @@ This module compares grade data using stable unique identifiers instead of
 deep dictionary comparison, making change detection fast and reliable.
 """
 import logging
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Optional
 from dataclasses import dataclass
 from datetime import datetime
 from .models import Assignment, GradeData, Section, Period, Category
@@ -64,7 +64,7 @@ class ChangeReport:
         grade_updates_count: Number of grade changes
         comment_updates_count: Number of comment changes
     """
-    changes: List[GradeChange]
+    changes: list[GradeChange]
     timestamp: datetime
     is_initial: bool = False
     new_assignments_count: int = 0
@@ -185,7 +185,7 @@ class IDComparator:
         self.logger.info(f"Comparison complete: {report.summary()}")
         return report
 
-    def _compare_grade_data(self, new_data: GradeData) -> List[GradeChange]:
+    def _compare_grade_data(self, new_data: GradeData) -> list[GradeChange]:
         """
         Compare new grade data against database state.
 

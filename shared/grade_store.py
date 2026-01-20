@@ -9,7 +9,7 @@ import json
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional
 from contextlib import contextmanager
 from .models import Assignment, Category, Period, Section, GradeData
 from decimal import Decimal
@@ -246,7 +246,7 @@ class GradeStore:
 
             return self._row_to_assignment(row)
 
-    def get_all_assignments(self) -> List[Assignment]:
+    def get_all_assignments(self) -> list[Assignment]:
         """Get all assignments from database"""
         with self._get_connection() as conn:
             cursor = conn.cursor()

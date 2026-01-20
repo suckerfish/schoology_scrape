@@ -1,65 +1,36 @@
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Any, Optional
 from notifications.manager import NotificationManager
 from notifications.base import NotificationMessage
 from shared.config import get_config
 
+
 class GradeNotifier:
     """Handles alert coordination and notification delivery"""
-    
+
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.config = get_config()
         self.notification_manager = self._initialize_notification_manager()
-    
+
     def _initialize_notification_manager(self) -> Optional[NotificationManager]:
         """Initialize the notification manager with configuration"""
         try:
-            # Build notification configuration from app config
-            notification_config = {}
-            
-            # Pushover configuration
-            if self.config.notifications.pushover_token and self.config.notifications.pushover_user_key:
-                notification_config['pushover'] = {
-                    'enabled': True,
-                    'token': self.config.notifications.pushover_token,
-                    'user_key': self.config.notifications.pushover_user_key
-                }
-            
-            # Email configuration
-            if (self.config.notifications.email_enabled and
-                self.config.notifications.email_sender and
-                self.config.notifications.email_password and
-                self.config.notifications.email_receiver):
-                notification_config['email'] = {
-                    'enabled': True,
-                    'smtp_server': 'smtp.gmail.com',
-                    'smtp_port': 587,
-                    'sender_email': self.config.notifications.email_sender,
-                    'sender_password': self.config.notifications.email_password,
-                    'receiver_email': self.config.notifications.email_receiver
-                }
-            
-            # Gemini configuration
-            if self.config.notifications.gemini_api_key:
-                notification_config['gemini'] = {
-                    'enabled': True,
-                    'api_key': self.config.notifications.gemini_api_key
-                }
-            
-            if notification_config:
-                manager = NotificationManager(notification_config)
-                self.logger.info(f"Notification manager initialized with providers: {manager.get_available_providers()}")
+            manager = NotificationManager.from_app_config(self.config.notifications)
+            providers = manager.get_available_providers()
+
+            if providers:
+                self.logger.info(f"Notification manager initialized with providers: {providers}")
                 return manager
             else:
                 self.logger.warning("No notification providers configured")
                 return None
-                
+
         except Exception as e:
             self.logger.error(f"Failed to initialize notification manager: {e}")
             return None
     
-    def send_grade_change_notification(self, changes: Dict[str, Any], formatted_message: str) -> tuple[bool, Dict[str, bool]]:
+    def send_grade_change_notification(self, changes: dict[str, Any], formatted_message: str) -> tuple[bool, dict[str, bool]]:
         """
         Send notification about grade changes
         
@@ -194,7 +165,7 @@ class GradeNotifier:
             self.logger.error(f"Error sending status notification: {e}")
             return False
     
-    def _determine_priority(self, changes: Dict[str, Any]) -> str:
+    def _determine_priority(self, changes: dict[str, Any]) -> str:
         """
         Determine notification priority based on the type and scale of changes
         
@@ -228,19 +199,19 @@ class GradeNotifier:
         else:
             return 'low'
     
-    def test_notifications(self) -> Dict[str, bool]:
+    def test_notifications(self) -> dict[str, bool]:
         """
         Test all notification providers
-        
+
         Returns:
-            Dict mapping provider names to test results
+            dict mapping provider names to test results
         """
         if not self.notification_manager:
             return {}
         
         return self.notification_manager.test_providers()
     
-    def get_available_providers(self) -> List[str]:
+    def get_available_providers(self) -> list[str]:
         """Get list of available notification providers"""
         if not self.notification_manager:
             return []

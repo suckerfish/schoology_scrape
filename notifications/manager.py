@@ -1,18 +1,70 @@
 import logging
-from typing import Dict, List, Any, Optional, Type
+from typing import Any, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from shared.config import NotificationConfig
+
 from .base import NotificationProvider, NotificationMessage
 from .pushover_provider import PushoverProvider
 from .email_provider import EmailProvider
 from .gemini_provider import GeminiProvider
 
+
 class NotificationManager:
     """Central notification manager with plugin loading and orchestration"""
-    
-    def __init__(self, config: Dict[str, Any]):
+
+    def __init__(self, config: dict[str, Any]):
         self.config = config
         self.logger = logging.getLogger(__name__)
-        self.providers: Dict[str, NotificationProvider] = {}
+        self.providers: dict[str, NotificationProvider] = {}
         self._load_providers()
+
+    @classmethod
+    def from_app_config(cls, notification_config: "NotificationConfig") -> "NotificationManager":
+        """
+        Create NotificationManager from app NotificationConfig.
+
+        This factory method handles the translation from the centralized
+        config format to the provider-specific format.
+
+        Args:
+            notification_config: NotificationConfig from shared.config
+
+        Returns:
+            Configured NotificationManager instance
+        """
+        config: dict[str, Any] = {}
+
+        # Pushover configuration
+        if notification_config.pushover_token and notification_config.pushover_user_key:
+            config['pushover'] = {
+                'enabled': True,
+                'token': notification_config.pushover_token,
+                'user_key': notification_config.pushover_user_key
+            }
+
+        # Email configuration
+        if (notification_config.email_enabled and
+            notification_config.email_sender and
+            notification_config.email_password and
+            notification_config.email_receiver):
+            config['email'] = {
+                'enabled': True,
+                'smtp_server': 'smtp.gmail.com',
+                'smtp_port': 587,
+                'sender_email': notification_config.email_sender,
+                'sender_password': notification_config.email_password,
+                'receiver_email': notification_config.email_receiver
+            }
+
+        # Gemini configuration
+        if notification_config.gemini_api_key:
+            config['gemini'] = {
+                'enabled': True,
+                'api_key': notification_config.gemini_api_key
+            }
+
+        return cls(config)
     
     def _load_providers(self):
         """Load and initialize notification providers based on configuration"""
@@ -37,16 +89,16 @@ class NotificationManager:
             except Exception as e:
                 self.logger.error(f"Failed to load provider {provider_name}: {e}")
     
-    def send_notification(self, message: NotificationMessage, providers: Optional[List[str]] = None) -> Dict[str, bool]:
+    def send_notification(self, message: NotificationMessage, providers: Optional[list[str]] = None) -> dict[str, bool]:
         """
         Send notification through specified providers or all available providers
-        
+
         Args:
             message: NotificationMessage to send
             providers: List of provider names to use (None = all available)
-            
+
         Returns:
-            Dict mapping provider names to success status
+            dict mapping provider names to success status
         """
         if providers is None:
             providers = list(self.providers.keys())
@@ -95,7 +147,7 @@ class NotificationManager:
         
         return results
     
-    def get_available_providers(self) -> List[str]:
+    def get_available_providers(self) -> list[str]:
         """Get list of available provider names"""
         return list(self.providers.keys())
     
@@ -103,16 +155,16 @@ class NotificationManager:
         """Check if a specific provider is available"""
         return provider_name in self.providers
     
-    def send_grade_change_notification(self, changes: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None) -> Dict[str, bool]:
+    def send_grade_change_notification(self, changes: dict[str, Any], metadata: Optional[dict[str, Any]] = None) -> dict[str, bool]:
         """
         Convenience method for sending grade change notifications
-        
+
         Args:
             changes: Dictionary containing grade change information
             metadata: Additional metadata to include
-            
+
         Returns:
-            Dict mapping provider names to success status
+            dict mapping provider names to success status
         """
         # Format the grade changes into a readable message
         title = "Schoology Grade Changes Detected"
@@ -132,7 +184,7 @@ class NotificationManager:
         
         return self.send_notification(message)
     
-    def _format_grade_changes(self, changes: Dict[str, Any]) -> str:
+    def _format_grade_changes(self, changes: dict[str, Any]) -> str:
         """Format grade changes into a readable message"""
         if not changes:
             return "No specific grade changes detected."
@@ -159,7 +211,7 @@ class NotificationManager:
         self._load_providers()
         self.logger.info("Notification providers reloaded")
     
-    def test_providers(self) -> Dict[str, bool]:
+    def test_providers(self) -> dict[str, bool]:
         """Test all available providers with a test message"""
         test_message = NotificationMessage(
             title="Test Notification",

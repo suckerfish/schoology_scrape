@@ -6,7 +6,7 @@ replacing the old string-key-based nested dictionaries with proper models
 that preserve unique identifiers from the Schoology API.
 """
 from datetime import datetime
-from typing import Optional, List, Dict, Tuple
+from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 from decimal import Decimal
 
@@ -125,7 +125,7 @@ class Category(BaseModel):
     category_id: int
     name: str
     weight: Optional[Decimal] = None
-    assignments: List[Assignment] = Field(default_factory=list)
+    assignments: list[Assignment] = Field(default_factory=list)
 
     @field_validator('weight', mode='before')
     @classmethod
@@ -150,7 +150,7 @@ class Period(BaseModel):
     """
     period_id: str
     name: str
-    categories: List[Category] = Field(default_factory=list)
+    categories: list[Category] = Field(default_factory=list)
 
 
 class Section(BaseModel):
@@ -166,7 +166,7 @@ class Section(BaseModel):
     section_id: str
     course_title: str
     section_title: str
-    periods: List[Period] = Field(default_factory=list)
+    periods: list[Period] = Field(default_factory=list)
 
     @property
     def full_name(self) -> str:
@@ -185,7 +185,7 @@ class GradeData(BaseModel):
         sections: List of all course sections
     """
     timestamp: datetime
-    sections: List[Section] = Field(default_factory=list)
+    sections: list[Section] = Field(default_factory=list)
 
     def get_assignment(self, assignment_id: str) -> Optional[Assignment]:
         """Find assignment by ID across all sections/periods/categories"""
@@ -197,7 +197,7 @@ class GradeData(BaseModel):
                             return assignment
         return None
 
-    def get_all_assignments(self) -> List[Tuple[Section, Period, Category, Assignment]]:
+    def get_all_assignments(self) -> list[tuple[Section, Period, Category, Assignment]]:
         """Get all assignments with their context (section, period, category)"""
         result = []
         for section in self.sections:
