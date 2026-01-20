@@ -6,6 +6,8 @@ using the new ID-based approach with database storage.
 """
 import logging
 import datetime
+import os
+import urllib.request
 from pathlib import Path
 from typing import Optional
 from api.fetch_grades_v2 import APIGradeFetcherV2
@@ -76,9 +78,7 @@ class GradePipelineV2:
                 if not notification_success:
                     self.logger.warning("Failed to send change notification")
             else:
-                self.logger.info("Step 3: Sending status notification - no changes detected")
-                status_message = f"Grade monitoring completed successfully. {report.summary()}. Duration: {pipeline_duration}"
-                self.notifier.send_status_notification(status_message, success=True)
+                self.logger.info("Step 3: No changes detected, skipping notification")
 
             # Log change report to JSON history
             self.change_logger.log_change_report(
@@ -93,6 +93,9 @@ class GradePipelineV2:
             except Exception as e:
                 self.logger.warning(f"Log cleanup failed: {e}")
 
+            # Ping healthchecks.io on success
+            self._ping_healthcheck(success=True, message=report.summary())
+
             return True
 
         except Exception as e:
@@ -104,6 +107,9 @@ class GradePipelineV2:
                 "Grade monitoring pipeline failed",
                 f"Error: {str(e)}\nDuration: {pipeline_duration}"
             )
+
+            # Ping healthchecks.io on failure
+            self._ping_healthcheck(success=False, message=str(e))
 
             return False
 
@@ -214,3 +220,28 @@ class GradePipelineV2:
             error_message,
             "All API fetch attempts failed. Please check API credentials and network connectivity."
         )
+
+        # Ping healthchecks.io on failure
+        self._ping_healthcheck(success=False, message=error_message)
+
+    def _ping_healthcheck(self, success: bool = True, message: str = "") -> None:
+        """
+        Ping healthchecks.io to report run status.
+
+        Args:
+            success: True for successful run, False for failure
+            message: Optional message to include in ping body
+        """
+        healthcheck_url = os.getenv("HEALTHCHECKS_URL")
+        if not healthcheck_url:
+            self.logger.debug("HEALTHCHECKS_URL not configured, skipping ping")
+            return
+
+        try:
+            url = healthcheck_url if success else f"{healthcheck_url}/fail"
+            data = message.encode("utf-8") if message else None
+            req = urllib.request.Request(url, data=data, method="POST" if data else "GET")
+            with urllib.request.urlopen(req, timeout=10) as response:
+                self.logger.info(f"Healthcheck ping {'success' if success else 'failure'}: {response.status}")
+        except Exception as e:
+            self.logger.warning(f"Failed to ping healthchecks.io: {e}")
