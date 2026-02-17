@@ -24,7 +24,7 @@ Automated grade monitoring system: polls Schoology API → detects changes via I
 **Environment variables** (`.env`):
 - `SCHOOLOGY_API_KEY` - API key from Schoology
 - `SCHOOLOGY_API_SECRET` - API secret from Schoology
-- `SCHOOLOGY_DOMAIN` - Your Schoology domain (e.g., lvjusd.schoology.com)
+- `SCHOOLOGY_DOMAIN` - Your Schoology domain (e.g., yourschool.schoology.com)
 - `SCRAPE_TIMES` - Run schedule ("08:00,20:00" for 8am/8pm daily)
 - `aws_key`/`aws_secret` - DynamoDB storage (optional)
 - `gemini_key` - AI analysis

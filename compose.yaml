@@ -1,8 +1,6 @@
 services:
   schoology-scheduler:
-    build: .
-    image: schoology-scraper:latest
-    pull_policy: build
+    image: ghcr.io/suckerfish/schoology_scrape:latest
     container_name: schoology-scheduler
     command: python scheduler.py
     env_file:

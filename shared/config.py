@@ -19,10 +19,7 @@ else:
 @dataclass
 class SchoologyConfig:
     """Schoology-specific configuration."""
-    google_email: str
-    google_password: str
-    base_url: str = "https://lvjusd.schoology.com/"
-    # API credentials (for api-polling branch)
+    base_url: str = "https://yourschool.schoology.com/"
     api_key: Optional[str] = None
     api_secret: Optional[str] = None
     api_domain: Optional[str] = None
@@ -93,12 +90,9 @@ class Config:
         """Validate that all required configuration is present."""
         errors = []
 
-        # Schoology validation - need EITHER Google credentials OR API credentials
-        has_google_creds = bool(self.schoology.google_email and self.schoology.google_password)
-        has_api_creds = bool(self.schoology.api_key and self.schoology.api_secret)
-
-        if not has_google_creds and not has_api_creds:
-            errors.append("Missing Schoology credentials: provide either (google_email + google_password) OR (api_key + api_secret)")
+        # Schoology validation - require API credentials
+        if not (self.schoology.api_key and self.schoology.api_secret):
+            errors.append("Missing Schoology API credentials: provide SCHOOLOGY_API_KEY and SCHOOLOGY_API_SECRET")
 
         # AWS validation
         if not self.aws.access_key_id:
@@ -113,7 +107,6 @@ class Config:
         """Convert config to dictionary for serialization."""
         return {
             "schoology": {
-                "google_email": self.schoology.google_email,
                 "base_url": self.schoology.base_url,
                 "api_enabled": bool(self.schoology.api_key and self.schoology.api_secret),
                 "api_domain": self.schoology.api_domain,
@@ -182,9 +175,7 @@ def load_config(env_file: Optional[str] = None, config_file: str = "config.toml"
     
     # Build configuration from TOML + environment variables
     schoology_config = SchoologyConfig(
-        google_email=os.getenv('evan_google', ''),
-        google_password=os.getenv('evan_google_pw', ''),
-        base_url=toml_config.get('schoology', {}).get('base_url', 'https://lvjusd.schoology.com/'),
+        base_url=toml_config.get('schoology', {}).get('base_url', 'https://yourschool.schoology.com/'),
         api_key=os.getenv('SCHOOLOGY_API_KEY'),
         api_secret=os.getenv('SCHOOLOGY_API_SECRET'),
         api_domain=os.getenv('SCHOOLOGY_DOMAIN')
@@ -278,7 +269,6 @@ if __name__ == "__main__":
     try:
         config = load_config()
         print("✅ Configuration loaded successfully")
-        print(f"📧 Schoology Email: {config.schoology.google_email}")
         print(f"🗄️  DynamoDB Table: {config.aws.dynamodb_table_name}")
         print(f"🤖 Gemini Enabled: {bool(config.notifications.gemini_api_key)}")
         print(f"📊 Cache TTL: {config.app.cache_ttl_seconds}s")

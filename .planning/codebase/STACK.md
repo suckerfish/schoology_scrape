@@ -62,7 +62,7 @@
 **Key env vars required:**
 - `SCHOOLOGY_API_KEY` - Schoology API key
 - `SCHOOLOGY_API_SECRET` - Schoology API secret
-- `SCHOOLOGY_DOMAIN` - Schoology instance domain (e.g., lvjusd.schoology.com)
+- `SCHOOLOGY_DOMAIN` - Schoology instance domain (e.g., yourschool.schoology.com)
 - `SCRAPE_TIMES` - Comma-separated 24h format times for scheduling (e.g., "08:00,20:00")
 
 **Optional env vars:**

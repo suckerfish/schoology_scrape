@@ -24,7 +24,7 @@ data_directory = "/app/data"
 
 [schoology]
 # Schoology instance configuration
-base_url = "https://lvjusd.schoology.com/"
+base_url = "https://yourschool.schoology.com/"
 
 [notifications]
 # Notification preferences
