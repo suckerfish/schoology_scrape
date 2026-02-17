@@ -264,8 +264,7 @@ def test_ungraded_assignments_ignored(temp_db):
 
 
 def test_notification_formatting(sample_grade_data):
-    """Test that change reports format correctly for notifications"""
-    # Create report with changes
+    """Test that change reports format with hierarchical grouping"""
     changes = [
         GradeChange(
             assignment_id="100",
@@ -277,22 +276,74 @@ def test_notification_formatting(sample_grade_data):
             new_grade="4 / 5",
             old_comment="Good",
             new_comment="Needs work",
-            change_type="grade_updated"
-        )
+            change_type="grade_updated",
+            new_earned=Decimal("4"),
+            new_max=Decimal("5"),
+            old_earned=Decimal("5"),
+            old_max=Decimal("5"),
+        ),
+        GradeChange(
+            assignment_id="101",
+            assignment_title="Quiz 2",
+            section_name="Math 7: Section 1",
+            period_name="T1",
+            category_name="Tests",
+            old_grade=None,
+            new_grade="8 / 10",
+            old_comment=None,
+            new_comment="No comment",
+            change_type="new_assignment",
+            new_earned=Decimal("8"),
+            new_max=Decimal("10"),
+        ),
     ]
 
     report = ChangeReport(
         changes=changes,
         timestamp=datetime.now(),
         is_initial=False,
-        grade_updates_count=1
+        grade_updates_count=1,
+        new_assignments_count=1,
     )
 
     message = report.format_for_notification()
 
-    assert "1 grade update" in message
+    # Should have hierarchical structure
+    assert "Math 7: Section 1" in message
+    assert "T1" in message
+    assert "Tests" in message
+    # Should contain assignment names
     assert "Test 1" in message
-    assert "4 / 5" in message
+    assert "Quiz 2" in message
+    # Should contain percentages
+    assert "80%" in message
+    assert "B-" in message
+    # Should contain summary line
+    assert "1 grade update" in message
+    assert "1 new assignment" in message
+
+
+def test_letter_grade_computation():
+    """Test letter grade threshold boundaries"""
+    assert GradeChange.letter_grade(100) == "A+"
+    assert GradeChange.letter_grade(97) == "A+"
+    assert GradeChange.letter_grade(96.9) == "A"
+    assert GradeChange.letter_grade(93) == "A"
+    assert GradeChange.letter_grade(92.9) == "A-"
+    assert GradeChange.letter_grade(90) == "A-"
+    assert GradeChange.letter_grade(89.9) == "B+"
+    assert GradeChange.letter_grade(87) == "B+"
+    assert GradeChange.letter_grade(83) == "B"
+    assert GradeChange.letter_grade(80) == "B-"
+    assert GradeChange.letter_grade(77) == "C+"
+    assert GradeChange.letter_grade(73) == "C"
+    assert GradeChange.letter_grade(70) == "C-"
+    assert GradeChange.letter_grade(67) == "D+"
+    assert GradeChange.letter_grade(63) == "D"
+    assert GradeChange.letter_grade(60) == "D-"
+    assert GradeChange.letter_grade(59.9) == "F"
+    assert GradeChange.letter_grade(0) == "F"
+    assert GradeChange.letter_grade(None) is None
 
 
 if __name__ == "__main__":

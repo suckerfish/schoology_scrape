@@ -14,7 +14,7 @@ Automated grade monitoring system: polls Schoology API → detects changes via I
 - `api/` - Schoology API client and grade fetcher
 - `pipeline/` - Orchestration (`orchestrator_v2.py`)
 - `shared/` - Core modules (models, comparator, store, config)
-- `notifications/` - Plugin-based alerts (Pushover, Email, Gemini AI)
+- `notifications/` - Plugin-based alerts (Email, Gemini AI)
 - `data/` - SQLite database (`grades.db`) and logs
 - `logs/` - Change tracking (`grade_changes.log`)
 - `tests/` - Unit tests
@@ -27,7 +27,6 @@ Automated grade monitoring system: polls Schoology API → detects changes via I
 - `SCHOOLOGY_DOMAIN` - Your Schoology domain (e.g., lvjusd.schoology.com)
 - `SCRAPE_TIMES` - Run schedule ("08:00,20:00" for 8am/8pm daily)
 - `aws_key`/`aws_secret` - DynamoDB storage (optional)
-- `pushover_token`/`pushover_userkey` - Mobile notifications
 - `gemini_key` - AI analysis
 - `HEALTHCHECKS_URL` - Uptime monitoring (pings on each run)
 
@@ -76,7 +75,7 @@ python -m pytest tests/ -v          # Run tests
 3. **ChangeLogger** writes JSON to `logs/grade_changes.log`
 4. **Notification Manager** loads available providers
 5. **Gemini Provider** generates AI analysis → adds to metadata
-6. **Other providers** (Pushover, Email) send alerts
+6. **Email provider** sends alerts
 
 ## Recent Changes
 

@@ -155,7 +155,7 @@ class GradeNotifier:
             
             # For status notifications, use only basic providers
             basic_providers = [p for p in self.notification_manager.get_available_providers() 
-                             if p in ['pushover', 'email']]
+                             if p in ['email']]
             
             results = self.notification_manager.send_notification(message, providers=basic_providers)
             

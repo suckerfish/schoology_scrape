@@ -5,7 +5,6 @@ if TYPE_CHECKING:
     from shared.config import NotificationConfig
 
 from .base import NotificationProvider, NotificationMessage
-from .pushover_provider import PushoverProvider
 from .email_provider import EmailProvider
 from .gemini_provider import GeminiProvider
 
@@ -35,14 +34,6 @@ class NotificationManager:
         """
         config: dict[str, Any] = {}
 
-        # Pushover configuration
-        if notification_config.pushover_token and notification_config.pushover_user_key:
-            config['pushover'] = {
-                'enabled': True,
-                'token': notification_config.pushover_token,
-                'user_key': notification_config.pushover_user_key
-            }
-
         # Email configuration
         if (notification_config.email_enabled and
             notification_config.email_sender and
@@ -69,7 +60,6 @@ class NotificationManager:
     def _load_providers(self):
         """Load and initialize notification providers based on configuration"""
         provider_classes = {
-            'pushover': PushoverProvider,
             'email': EmailProvider,
             'gemini': GeminiProvider
         }

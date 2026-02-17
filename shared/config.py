@@ -40,8 +40,6 @@ class AWSConfig:
 @dataclass
 class NotificationConfig:
     """Notification service configuration."""
-    pushover_token: Optional[str] = None
-    pushover_user_key: Optional[str] = None
     gemini_api_key: Optional[str] = None
     email_enabled: bool = True
     email_sender: Optional[str] = None
@@ -127,7 +125,6 @@ class Config:
                 # Note: Credentials intentionally excluded from serialization
             },
             "notifications": {
-                "pushover_enabled": bool(self.notifications.pushover_token),
                 "gemini_enabled": bool(self.notifications.gemini_api_key),
                 "email_enabled": self.notifications.email_enabled,
             },
@@ -201,8 +198,6 @@ def load_config(env_file: Optional[str] = None, config_file: str = "config.toml"
     )
     
     notification_config = NotificationConfig(
-        pushover_token=os.getenv('pushover_token'),
-        pushover_user_key=os.getenv('pushover_userkey'),
         gemini_api_key=os.getenv('gemini_key'),
         email_enabled=toml_config.get('notifications', {}).get('email_enabled', True),
         email_sender=os.getenv('email_sender'),
@@ -285,7 +280,6 @@ if __name__ == "__main__":
         print("✅ Configuration loaded successfully")
         print(f"📧 Schoology Email: {config.schoology.google_email}")
         print(f"🗄️  DynamoDB Table: {config.aws.dynamodb_table_name}")
-        print(f"📱 Pushover Enabled: {bool(config.notifications.pushover_token)}")
         print(f"🤖 Gemini Enabled: {bool(config.notifications.gemini_api_key)}")
         print(f"📊 Cache TTL: {config.app.cache_ttl_seconds}s")
         print(f"💾 Conditional Save: {config.storage.conditional_save}")

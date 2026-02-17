@@ -181,6 +181,7 @@ class GradePipelineV2:
             changes_dict = {
                 'type': 'update',
                 'summary': report.summary(),
+                'change_objects': report.changes,
                 'detailed_changes': [
                     {
                         'type': 'grade_change',

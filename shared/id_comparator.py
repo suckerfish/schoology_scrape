@@ -5,6 +5,8 @@ This module compares grade data using stable unique identifiers instead of
 deep dictionary comparison, making change detection fast and reliable.
 """
 import logging
+from collections import defaultdict
+from decimal import Decimal
 from typing import Optional
 from dataclasses import dataclass
 from datetime import datetime
@@ -39,13 +41,55 @@ class GradeChange:
     old_comment: Optional[str]
     new_comment: str
     change_type: str  # "new_assignment", "grade_updated", "comment_updated"
+    new_earned: Optional[Decimal] = None
+    new_max: Optional[Decimal] = None
+    old_earned: Optional[Decimal] = None
+    old_max: Optional[Decimal] = None
+
+    def percentage(self) -> Optional[float]:
+        """Compute percentage from new earned/max points"""
+        if self.new_earned is not None and self.new_max and self.new_max > 0:
+            return float(self.new_earned / self.new_max * 100)
+        return None
+
+    def old_percentage(self) -> Optional[float]:
+        """Compute percentage from old earned/max points"""
+        if self.old_earned is not None and self.old_max and self.old_max > 0:
+            return float(self.old_earned / self.old_max * 100)
+        return None
+
+    @staticmethod
+    def letter_grade(pct: Optional[float]) -> Optional[str]:
+        """Convert percentage to letter grade on plus/minus scale"""
+        if pct is None:
+            return None
+        thresholds = [
+            (97, "A+"), (93, "A"), (90, "A-"),
+            (87, "B+"), (83, "B"), (80, "B-"),
+            (77, "C+"), (73, "C"), (70, "C-"),
+            (67, "D+"), (63, "D"), (60, "D-"),
+        ]
+        for cutoff, grade in thresholds:
+            if pct >= cutoff:
+                return grade
+        return "F"
+
+    def _format_grade_with_pct(self, grade_str: str, pct: Optional[float]) -> str:
+        """Append percentage and letter grade to a grade string"""
+        if pct is not None:
+            letter = self.letter_grade(pct)
+            return f"{grade_str} ({pct:.0f}% {letter})"
+        return grade_str
 
     def summary(self) -> str:
         """Generate human-readable summary of this change"""
         if self.change_type == "new_assignment":
-            return f"New graded assignment: {self.assignment_title} = {self.new_grade}"
+            grade = self._format_grade_with_pct(self.new_grade, self.percentage())
+            return f"New: {self.assignment_title} = {grade}"
         elif self.change_type == "grade_updated":
-            return f"{self.assignment_title}: {self.old_grade} → {self.new_grade}"
+            old = self._format_grade_with_pct(self.old_grade, self.old_percentage())
+            new = self._format_grade_with_pct(self.new_grade, self.percentage())
+            return f"{self.assignment_title}: {old} -> {new}"
         elif self.change_type == "comment_updated":
             return f"{self.assignment_title}: Comment updated"
         return f"{self.assignment_title}: Changed"
@@ -94,7 +138,7 @@ class ChangeReport:
         return "Changes detected: " + ", ".join(parts)
 
     def format_for_notification(self) -> str:
-        """Format changes for notification message"""
+        """Format changes for notification message with hierarchical grouping"""
         if self.is_initial:
             return self.summary()
 
@@ -102,14 +146,22 @@ class ChangeReport:
             return self.summary()
 
         message = f"{self.summary()}\n\n"
-        message += "Detailed changes:\n"
 
-        # Limit to first 15 changes to avoid overly long messages
-        for change in self.changes[:15]:
-            message += f"• {change.summary()}\n"
+        # Group changes by section -> period -> category
+        tree: dict[str, dict[str, dict[str, list[GradeChange]]]] = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(list))
+        )
+        for change in self.changes:
+            tree[change.section_name][change.period_name][change.category_name].append(change)
 
-        if len(self.changes) > 15:
-            message += f"• ... and {len(self.changes) - 15} more changes\n"
+        for section_name, periods in tree.items():
+            message += f"{section_name}\n"
+            for period_name, categories in periods.items():
+                message += f"  {period_name}\n"
+                for category_name, changes in categories.items():
+                    message += f"    {category_name}\n"
+                    for change in changes:
+                        message += f"      {change.summary()}\n"
 
         return message
 
@@ -218,7 +270,9 @@ class IDComparator:
                     new_grade=new_assignment.grade_string(),
                     old_comment=None,
                     new_comment=new_assignment.comment,
-                    change_type="new_assignment"
+                    change_type="new_assignment",
+                    new_earned=new_assignment.earned_points,
+                    new_max=new_assignment.max_points,
                 ))
 
             elif new_assignment.grade_changed(old_assignment):
@@ -241,7 +295,11 @@ class IDComparator:
                     new_grade=new_assignment.grade_string(),
                     old_comment=old_assignment.comment,
                     new_comment=new_assignment.comment,
-                    change_type=change_type
+                    change_type=change_type,
+                    new_earned=new_assignment.earned_points,
+                    new_max=new_assignment.max_points,
+                    old_earned=old_assignment.earned_points,
+                    old_max=old_assignment.max_points,
                 ))
 
         return changes
