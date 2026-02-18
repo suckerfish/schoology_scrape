@@ -22,10 +22,6 @@ retry_delay_seconds = 2
 download_path = "/app"
 data_directory = "/app/data"
 
-[schoology]
-# Schoology instance configuration
-base_url = "https://yourschool.schoology.com/"
-
 [notifications]
 # Notification preferences
 email_enabled = true

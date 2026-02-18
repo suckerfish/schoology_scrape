@@ -19,19 +19,8 @@ else:
 @dataclass
 class SchoologyConfig:
     """Schoology-specific configuration."""
-    base_url: str = "https://yourschool.schoology.com/"
     api_key: Optional[str] = None
     api_secret: Optional[str] = None
-    api_domain: Optional[str] = None
-
-
-@dataclass  
-class AWSConfig:
-    """AWS-specific configuration."""
-    access_key_id: str
-    secret_access_key: str
-    region: str = "us-west-1"
-    dynamodb_table_name: str = "SchoologyGrades"
 
 
 @dataclass
@@ -76,7 +65,6 @@ class LoggingConfig:
 class Config:
     """Master configuration container."""
     schoology: SchoologyConfig
-    aws: AWSConfig
     notifications: NotificationConfig
     app: AppConfig
     storage: StorageConfig
@@ -94,12 +82,6 @@ class Config:
         if not (self.schoology.api_key and self.schoology.api_secret):
             errors.append("Missing Schoology API credentials: provide SCHOOLOGY_API_KEY and SCHOOLOGY_API_SECRET")
 
-        # AWS validation
-        if not self.aws.access_key_id:
-            errors.append("Missing required config: aws.access_key_id")
-        if not self.aws.secret_access_key:
-            errors.append("Missing required config: aws.secret_access_key")
-
         if errors:
             raise ValueError(f"Configuration validation failed:\n" + "\n".join(errors))
     
@@ -107,15 +89,7 @@ class Config:
         """Convert config to dictionary for serialization."""
         return {
             "schoology": {
-                "base_url": self.schoology.base_url,
                 "api_enabled": bool(self.schoology.api_key and self.schoology.api_secret),
-                "api_domain": self.schoology.api_domain,
-                # Note: Passwords and secrets intentionally excluded from serialization
-            },
-            "aws": {
-                "region": self.aws.region,
-                "dynamodb_table_name": self.aws.dynamodb_table_name,
-                # Note: Credentials intentionally excluded from serialization
             },
             "notifications": {
                 "gemini_enabled": bool(self.notifications.gemini_api_key),
@@ -175,17 +149,8 @@ def load_config(env_file: Optional[str] = None, config_file: str = "config.toml"
     
     # Build configuration from TOML + environment variables
     schoology_config = SchoologyConfig(
-        base_url=toml_config.get('schoology', {}).get('base_url', 'https://yourschool.schoology.com/'),
         api_key=os.getenv('SCHOOLOGY_API_KEY'),
         api_secret=os.getenv('SCHOOLOGY_API_SECRET'),
-        api_domain=os.getenv('SCHOOLOGY_DOMAIN')
-    )
-    
-    aws_config = AWSConfig(
-        access_key_id=os.getenv('aws_key', ''),
-        secret_access_key=os.getenv('aws_secret', ''),
-        region=toml_config.get('aws', {}).get('region', 'us-west-1'),
-        dynamodb_table_name=toml_config.get('aws', {}).get('dynamodb_table_name', 'SchoologyGrades')
     )
     
     notification_config = NotificationConfig(
@@ -220,7 +185,6 @@ def load_config(env_file: Optional[str] = None, config_file: str = "config.toml"
 
     return Config(
         schoology=schoology_config,
-        aws=aws_config,
         notifications=notification_config,
         app=app_config,
         storage=storage_config,
@@ -268,11 +232,10 @@ if __name__ == "__main__":
     # Test configuration loading
     try:
         config = load_config()
-        print("✅ Configuration loaded successfully")
-        print(f"🗄️  DynamoDB Table: {config.aws.dynamodb_table_name}")
-        print(f"🤖 Gemini Enabled: {bool(config.notifications.gemini_api_key)}")
-        print(f"📊 Cache TTL: {config.app.cache_ttl_seconds}s")
-        print(f"💾 Conditional Save: {config.storage.conditional_save}")
+        print("Configuration loaded successfully")
+        print(f"Gemini Enabled: {bool(config.notifications.gemini_api_key)}")
+        print(f"Cache TTL: {config.app.cache_ttl_seconds}s")
+        print(f"Conditional Save: {config.storage.conditional_save}")
     except ValueError as e:
         print(f"❌ Configuration error: {e}")
     except Exception as e:

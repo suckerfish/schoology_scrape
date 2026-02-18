@@ -24,13 +24,12 @@ Automated grade monitoring system: polls Schoology API → detects changes via I
 **Environment variables** (`.env`):
 - `SCHOOLOGY_API_KEY` - API key from Schoology
 - `SCHOOLOGY_API_SECRET` - API secret from Schoology
-- `SCHOOLOGY_DOMAIN` - Your Schoology domain (e.g., yourschool.schoology.com)
 - `SCRAPE_TIMES` - Run schedule ("08:00,20:00" for 8am/8pm daily)
 - `gemini_key` - AI analysis (optional)
 - `email_sender`/`email_password`/`email_receiver` - Email notifications (optional)
 - `HEALTHCHECKS_URL` - Uptime monitoring (pings on each run, optional)
 
-**App settings** (`config.toml`): retries, logging, AWS region
+**App settings** (`config.toml`): retries, logging, storage behavior
 
 ## Data Model
 
