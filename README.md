@@ -109,15 +109,10 @@ Each assignment contains:
 ### SQLite Database
 - **`data/grades.db`**: Current grade state with full history
 - Fast ID-based lookups for change detection
-- See `ID_BASED_SYSTEM.md` for schema details
 
 ### Logs
 - **`logs/grade_changes.log`**: JSON-formatted change history
 - **`grade_scraper.log`**: Application logs
-
-### AWS DynamoDB (Optional)
-- Historical snapshots for cross-device access
-- Configurable via `config.toml`
 
 ## Architecture
 
