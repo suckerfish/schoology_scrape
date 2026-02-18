@@ -10,6 +10,4 @@ services:
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
-      - ./config.toml:/app/config.toml:ro
-      - ./.env:/app/.env:ro
     restart: unless-stopped
