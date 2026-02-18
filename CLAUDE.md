@@ -26,9 +26,9 @@ Automated grade monitoring system: polls Schoology API → detects changes via I
 - `SCHOOLOGY_API_SECRET` - API secret from Schoology
 - `SCHOOLOGY_DOMAIN` - Your Schoology domain (e.g., yourschool.schoology.com)
 - `SCRAPE_TIMES` - Run schedule ("08:00,20:00" for 8am/8pm daily)
-- `aws_key`/`aws_secret` - DynamoDB storage (optional)
-- `gemini_key` - AI analysis
-- `HEALTHCHECKS_URL` - Uptime monitoring (pings on each run)
+- `gemini_key` - AI analysis (optional)
+- `email_sender`/`email_password`/`email_receiver` - Email notifications (optional)
+- `HEALTHCHECKS_URL` - Uptime monitoring (pings on each run, optional)
 
 **App settings** (`config.toml`): retries, logging, AWS region
 
@@ -79,13 +79,21 @@ python -m pytest tests/ -v          # Run tests
 
 ## Recent Changes
 
+- Sanitized codebase for public repository (removed hardcoded domain, legacy Google login fields)
+- Docker image published to GHCR (`ghcr.io/suckerfish/schoology_scrape`) via GitHub Actions (multi-arch: amd64 + arm64)
+- `compose.yaml` pulls from GHCR instead of building locally
 - Added healthchecks.io integration for uptime monitoring
 - Removed "no changes" status notifications (only notifies on actual grade changes)
+- Removed Pushover notifications
 - Migrated to ID-based change detection (replaced DeepDiff)
 - SQLite state storage (replaced JSON snapshot comparison)
 - New Gemini SDK (`google-genai` replacing deprecated `google-generativeai`)
-- Simplified to single branch (main)
 - Removed Selenium/browser scraping (API-only now)
+
+## CI/CD
+
+- **GitHub Actions**: `.github/workflows/docker-publish.yml` builds and pushes multi-arch Docker images (amd64 + arm64) to GHCR on every push to `main`
+- **Image**: `ghcr.io/suckerfish/schoology_scrape:latest`
 
 ## Development Notes
 

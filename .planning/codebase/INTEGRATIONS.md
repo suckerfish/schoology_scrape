@@ -92,31 +92,27 @@
 
 **Hosting:**
 - Docker (self-hosted or cloud container platform)
-- Container image: `schoology-scraper:latest` (built from Dockerfile)
+- Container image: `ghcr.io/suckerfish/schoology_scrape:latest` (multi-arch: amd64 + arm64)
 - Entry point: `scheduler.py` (runs indefinitely at scheduled times)
 - Alternative entry: `main.py` (single run or daemon mode)
 
 **CI Pipeline:**
-- None detected - No GitHub Actions, GitLab CI, or other CI/CD configured
+- GitHub Actions (`.github/workflows/docker-publish.yml`)
+  - Triggers on push to `main`
+  - Builds multi-platform Docker image (linux/amd64, linux/arm64) via QEMU + Buildx
+  - Pushes to GitHub Container Registry (ghcr.io)
+  - Tags: `latest` + commit SHA
 
 **Deployment:**
 - Docker Compose (`compose.yaml`)
   - Service: `schoology-scheduler`
+  - Image: `ghcr.io/suckerfish/schoology_scrape:latest`
   - Command: `python scheduler.py`
-  - Volumes: data/, logs/, config.toml, .env (mounted)
+  - Volumes: data/, logs/
   - Restart policy: `unless-stopped`
   - Environment: Loaded from `.env` file
 
 ## Notification Services
-
-**Mobile Notifications:**
-- Pushover API - Push notifications to mobile devices
-  - Service endpoint: `https://api.pushover.net/1/messages.json`
-  - Auth: Token (app) + User key (recipient)
-  - Env vars: `pushover_token`, `pushover_userkey`
-  - Provider implementation: `notifications/pushover_provider.py`
-  - Features: Title, message, priority levels (-2 to 2), URL deeplinks, file attachments
-  - Optional: Only active if both `pushover_token` and `pushover_userkey` are configured
 
 **Email Notifications:**
 - Gmail SMTP - Email notifications via Gmail
@@ -132,7 +128,7 @@
 
 **Notification System:**
 - Plugin-based manager in `notifications/manager.py`
-- Supported providers: Pushover, Email, Gemini (AI analysis)
+- Supported providers: Email, Gemini (AI analysis)
 - Auto-loading: Providers load only if credentials are present
 - Execution order: Gemini runs first (generates AI analysis), then other providers use enhanced message
 - Message enrichment: Gemini analysis added to message metadata for other providers
@@ -147,7 +143,6 @@
 - `SCRAPE_TIMES` - Schedule in 24h format (e.g., "08:00,20:00")
 
 **Optional env vars (service integrations):**
-- `pushover_token`, `pushover_userkey` - Mobile notifications
 - `email_sender`, `email_password`, `email_receiver` - Email notifications
 - `gemini_key` - AI analysis
 - `aws_key`, `aws_secret` - AWS (optional, not actively used)
@@ -166,7 +161,6 @@
 **Outgoing:**
 - Schoology API - REST API calls to fetch grade data (polling, not event-driven)
 - Google Gemini API - REST API calls for AI analysis
-- Pushover API - REST API calls for push notifications
 - Gmail SMTP - SMTP protocol for email notifications
 - Healthchecks.io - HTTP GET request to ping endpoint
 

@@ -66,15 +66,15 @@
 - `SCRAPE_TIMES` - Comma-separated 24h format times for scheduling (e.g., "08:00,20:00")
 
 **Optional env vars:**
-- `aws_key`, `aws_secret` - AWS DynamoDB storage (optional, not actively used per code review)
-- `pushover_token`, `pushover_userkey` - Pushover mobile notifications
 - `gemini_key` - Google Gemini API key for grade analysis
 - `email_sender`, `email_password`, `email_receiver` - Gmail SMTP notifications
+- `aws_key`, `aws_secret` - AWS DynamoDB storage (optional, not actively used)
 - `HEALTHCHECKS_URL` - Healthchecks.io uptime monitoring ping URL
 
 **Build Configuration:**
-- `Dockerfile` - Multi-stage containerization with Python 3.12-slim-bookworm
-- `compose.yaml` - Single service definition for Docker Compose orchestration
+- `Dockerfile` - Containerization with Python 3.12-slim-bookworm
+- `compose.yaml` - Single service definition pulling from GHCR
+- `.github/workflows/docker-publish.yml` - CI pipeline: multi-arch build (amd64 + arm64) → GHCR
 - `.dockerignore` - Docker build context filtering
 
 ## Platform Requirements
@@ -89,9 +89,9 @@
 - Access to external APIs:
   - Schoology API endpoint (OAuth 1.0a)
   - Google Gemini API (optional, for AI analysis)
-  - Pushover API (optional, for mobile notifications)
   - Gmail SMTP server (optional, for email notifications)
   - Healthchecks.io (optional, for uptime monitoring)
+  - GHCR (`ghcr.io`) for pulling container image
 - Network connectivity to all integrated services
 - Local SQLite database persistence (volume mount in Docker Compose)
 
