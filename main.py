@@ -8,18 +8,23 @@ Supports two modes:
 """
 import argparse
 import logging
+import logging.handlers
 import sys
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
 from pipeline.orchestrator_v2 import GradePipelineV2
 from shared.config import get_config
 
 
-def setup_logging(daemon_mode: bool = False) -> None:
-    """Setup logging configuration"""
+def setup_logging(daemon_mode: bool = False, level: str = "INFO") -> None:
+    """
+    Setup logging configuration.
+
+    Must run before any module configures logging itself, otherwise
+    basicConfig() becomes a no-op and these handlers are never installed.
+    """
     # Ensure logs directory exists
     Path('logs').mkdir(exist_ok=True)
 
@@ -27,12 +32,17 @@ def setup_logging(daemon_mode: bool = False) -> None:
     if daemon_mode:
         log_format = '%(asctime)s - DAEMON - %(levelname)s - %(message)s'
 
+    # Rotate so an always-on daemon cannot fill the volume
+    file_handler = logging.handlers.RotatingFileHandler(
+        'logs/grade_scraper.log', maxBytes=5 * 1024 * 1024, backupCount=3
+    )
+
     logging.basicConfig(
-        level=logging.INFO,
+        level=getattr(logging, level.upper(), logging.INFO),
         format=log_format,
         handlers=[
             logging.StreamHandler(sys.stdout),
-            logging.FileHandler('logs/grade_scraper.log')
+            file_handler
         ]
     )
 
@@ -130,7 +140,7 @@ def run_pipeline() -> bool:
 
     try:
         pipeline = GradePipelineV2()
-        success = pipeline.run_full_pipeline(download_path='.')
+        success = pipeline.run_full_pipeline()
 
         if success:
             logger.info("Grade scraping pipeline completed successfully")
@@ -183,7 +193,14 @@ def main() -> None:
     """Main entry point for the grade scraper"""
     args = parse_args()
 
-    setup_logging(daemon_mode=args.daemon)
+    # Read the log level before logging is configured; fall back to INFO so a
+    # bad config still produces readable output for the error below.
+    try:
+        log_level = get_config().app.log_level
+    except Exception:
+        log_level = "INFO"
+
+    setup_logging(daemon_mode=args.daemon, level=log_level)
     logger = logging.getLogger(__name__)
 
     if args.daemon:

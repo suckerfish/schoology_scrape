@@ -12,7 +12,7 @@ Automated grade monitoring system: polls Schoology API → detects changes via I
 
 **Key Directories**:
 - `api/` - Schoology API client and grade fetcher
-- `pipeline/` - Orchestration (`orchestrator_v2.py`)
+- `pipeline/` - Orchestration (`orchestrator_v2.py`) and notification coordination (`notifier.py`)
 - `shared/` - Core modules (models, comparator, store, config)
 - `notifications/` - Plugin-based alerts (Email, Gemini AI)
 - `data/` - SQLite database (`grades.db`) and logs
@@ -29,7 +29,7 @@ Automated grade monitoring system: polls Schoology API → detects changes via I
 - `email_sender`/`email_password`/`email_receiver` - Email notifications (optional)
 - `HEALTHCHECKS_URL` - Uptime monitoring (pings on each run, optional)
 
-**App settings** (`config.toml`): retries, logging, storage behavior
+**App settings** (`config.toml`): log level, retries, data directory, change-log retention, email toggle
 
 ## Data Model
 
@@ -40,6 +40,11 @@ GradeData → Section → Period → Category → Assignment
 Each assignment has: `assignment_id`, `title`, `earned_points`, `max_points`, `exception`, `comment`, `due_date`
 
 State stored in SQLite (`data/grades.db`) with tables: `snapshots`, `sections`, `periods`, `categories`, `assignments`
+
+Writes are upserts, not `INSERT OR REPLACE`: foreign keys are enforced with
+`ON DELETE CASCADE`, so a REPLACE would cascade-delete a row's children. Sections
+missing from the API feed are pruned on save (skipped if the feed is empty), and
+the `snapshots` table is capped at 100 rows.
 
 ## Essential Commands
 
@@ -78,6 +83,11 @@ python -m pytest tests/ -v          # Run tests
 
 ## Recent Changes
 
+- Section IDs are resolved by direct `/sections/{id}` lookup and joined to enrollments on `course_id`; detail endpoints try both IDs
+- Assignments are fetched per section in one bulk call, with a per-assignment fallback
+- Removed dead code: `pipeline/error_handling.py`, unused notification/config/store methods, orphaned config keys
+- Logging is configured once in `main.py` (no module-level `basicConfig`) and the file log rotates at 5 MB
+- Added `pydantic` to `requirements.txt`; dropped unused `absl-py` and `toml`
 - Sanitized codebase for public repository (removed hardcoded domain, legacy Google login fields)
 - Docker image published to GHCR (`ghcr.io/suckerfish/schoology_scrape`) via GitHub Actions (multi-arch: amd64 + arm64)
 - `compose.yaml` pulls from GHCR instead of building locally
@@ -104,6 +114,5 @@ python -m pytest tests/ -v          # Run tests
 
 ## Known Limitations
 
-- ~5 assignments return 403 Forbidden (Schoology API permission issue)
-- Section ID offset matching sometimes needed (handled automatically)
+- A section may deny detail endpoints on one of its two IDs; the fetcher retries with the other
 - Teacher comments limited compared to web scraping

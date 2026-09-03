@@ -3,30 +3,18 @@
 # Sensitive credentials (passwords, API keys) should be in .env file
 
 [app]
-# Logging configuration
 log_level = "INFO"
 
-[logging]
-# Diff and change logging configuration
-enable_change_logging = true
-enable_raw_diff_logging = false  # Debug only - can be large files
-change_log_retention_days = 90
-raw_diff_log_retention_days = 7
-
-# Performance settings
-cache_ttl_seconds = 300  # 5 minutes
+# Retry behavior for API fetches
 max_retries = 3
-retry_delay_seconds = 2
 
 # File paths (container-friendly)
-download_path = "/app"
 data_directory = "/app/data"
 
-[notifications]
-# Notification preferences
-email_enabled = true
+[logging]
+# JSON change-history log
+enable_change_logging = true
+change_log_retention_days = 90
 
-[storage]
-# Storage behavior configuration
-conditional_save = true      # Only save data when changes are detected
-force_save_on_error = true   # Fail-safe: save data if change detection fails
+[notifications]
+email_enabled = true

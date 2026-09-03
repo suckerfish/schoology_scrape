@@ -105,24 +105,3 @@ class GeminiProvider(NotificationProvider):
                 base_prompt += f"\n\nCourse Information: {message.metadata['course_info']}"
 
         return base_prompt
-
-    def ask(self, question: str) -> Optional[str]:
-        """Direct question interface (for backward compatibility)"""
-        if not self.is_available():
-            return None
-
-        if not self.client:
-            self._initialize_client()
-            if not self.client:
-                return None
-
-        try:
-            response = self.client.models.generate_content(
-                model='gemini-2.0-flash',
-                contents=question
-            )
-            return response.text if response else None
-
-        except Exception as e:
-            self.logger.error(f"Failed to get Gemini response: {e}")
-            return None

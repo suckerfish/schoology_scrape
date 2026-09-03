@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Optional
 from dataclasses import dataclass
 from datetime import datetime
-from .models import Assignment, GradeData, Section, Period, Category
+from .models import Assignment, GradeData
 from .grade_store import GradeStore
 
 
@@ -303,15 +303,3 @@ class IDComparator:
                 ))
 
         return changes
-
-    def format_changes_for_notification(self, report: ChangeReport) -> str:
-        """
-        Format change report for notification (compatible with old interface).
-
-        Args:
-            report: Change report
-
-        Returns:
-            Formatted notification message
-        """
-        return report.format_for_notification()

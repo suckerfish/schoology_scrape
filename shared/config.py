@@ -3,10 +3,9 @@ Centralized configuration management for Schoology Grade Scraper.
 Loads non-sensitive settings from config.toml and credentials from .env files.
 """
 import os
-from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from dataclasses import dataclass
+from typing import Optional
 from dotenv import load_dotenv
-import logging
 import sys
 
 # Handle Python version compatibility for TOML
@@ -36,29 +35,17 @@ class NotificationConfig:
 @dataclass
 class AppConfig:
     """Application-level configuration."""
-    download_path: str = "."
     data_directory: str = "data"
     log_level: str = "INFO"
-    cache_ttl_seconds: int = 300  # 5 minutes
     max_retries: int = 3
-    retry_delay_seconds: int = 2
     scrape_times: str = "21:00"  # Default fallback schedule
-
-
-@dataclass
-class StorageConfig:
-    """Storage behavior configuration."""
-    conditional_save: bool = True      # Only save data when changes are detected
-    force_save_on_error: bool = True   # Fail-safe: save data if change detection fails
 
 
 @dataclass
 class LoggingConfig:
     """Logging behavior configuration."""
     enable_change_logging: bool = True
-    enable_raw_diff_logging: bool = False  # Debug only - can generate large files
     change_log_retention_days: int = 90
-    raw_diff_log_retention_days: int = 7
 
 
 @dataclass
@@ -67,7 +54,6 @@ class Config:
     schoology: SchoologyConfig
     notifications: NotificationConfig
     app: AppConfig
-    storage: StorageConfig
     logging: LoggingConfig
     
     def __post_init__(self):
@@ -84,37 +70,6 @@ class Config:
 
         if errors:
             raise ValueError(f"Configuration validation failed:\n" + "\n".join(errors))
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert config to dictionary for serialization."""
-        return {
-            "schoology": {
-                "api_enabled": bool(self.schoology.api_key and self.schoology.api_secret),
-            },
-            "notifications": {
-                "gemini_enabled": bool(self.notifications.gemini_api_key),
-                "email_enabled": self.notifications.email_enabled,
-            },
-            "app": {
-                "download_path": self.app.download_path,
-                "data_directory": self.app.data_directory,
-                "log_level": self.app.log_level,
-                "cache_ttl_seconds": self.app.cache_ttl_seconds,
-                "max_retries": self.app.max_retries,
-                "retry_delay_seconds": self.app.retry_delay_seconds,
-                "scrape_times": self.app.scrape_times,
-            },
-            "storage": {
-                "conditional_save": self.storage.conditional_save,
-                "force_save_on_error": self.storage.force_save_on_error,
-            },
-            "logging": {
-                "enable_change_logging": self.logging.enable_change_logging,
-                "enable_raw_diff_logging": self.logging.enable_raw_diff_logging,
-                "change_log_retention_days": self.logging.change_log_retention_days,
-                "raw_diff_log_retention_days": self.logging.raw_diff_log_retention_days,
-            }
-        }
 
 
 def load_config(env_file: Optional[str] = None, config_file: str = "config.toml") -> Config:
@@ -162,45 +117,22 @@ def load_config(env_file: Optional[str] = None, config_file: str = "config.toml"
     )
     
     app_config = AppConfig(
-        download_path=toml_config.get('app', {}).get('download_path', '.'),
         data_directory=toml_config.get('app', {}).get('data_directory', 'data'),
         log_level=toml_config.get('app', {}).get('log_level', 'INFO'),
-        cache_ttl_seconds=toml_config.get('app', {}).get('cache_ttl_seconds', 300),
         max_retries=toml_config.get('app', {}).get('max_retries', 3),
-        retry_delay_seconds=toml_config.get('app', {}).get('retry_delay_seconds', 2),
         scrape_times=os.getenv('SCRAPE_TIMES', '21:00')
     )
     
-    storage_config = StorageConfig(
-        conditional_save=toml_config.get('storage', {}).get('conditional_save', True),
-        force_save_on_error=toml_config.get('storage', {}).get('force_save_on_error', True)
-    )
-
     logging_config = LoggingConfig(
         enable_change_logging=toml_config.get('logging', {}).get('enable_change_logging', True),
-        enable_raw_diff_logging=toml_config.get('logging', {}).get('enable_raw_diff_logging', False),
-        change_log_retention_days=toml_config.get('logging', {}).get('change_log_retention_days', 90),
-        raw_diff_log_retention_days=toml_config.get('logging', {}).get('raw_diff_log_retention_days', 7)
+        change_log_retention_days=toml_config.get('logging', {}).get('change_log_retention_days', 90)
     )
 
     return Config(
         schoology=schoology_config,
         notifications=notification_config,
         app=app_config,
-        storage=storage_config,
         logging=logging_config
-    )
-
-
-def setup_logging(config: Config) -> None:
-    """Configure logging based on configuration."""
-    logging.basicConfig(
-        level=getattr(logging, config.app.log_level.upper()),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(),
-            logging.FileHandler('logs/application.log', mode='a')
-        ]
     )
 
 
@@ -226,17 +158,3 @@ def reset_config() -> None:
     """Reset the global configuration instance. Useful for testing."""
     global _config_instance
     _config_instance = None
-
-
-if __name__ == "__main__":
-    # Test configuration loading
-    try:
-        config = load_config()
-        print("Configuration loaded successfully")
-        print(f"Gemini Enabled: {bool(config.notifications.gemini_api_key)}")
-        print(f"Cache TTL: {config.app.cache_ttl_seconds}s")
-        print(f"Conditional Save: {config.storage.conditional_save}")
-    except ValueError as e:
-        print(f"❌ Configuration error: {e}")
-    except Exception as e:
-        print(f"❌ Unexpected error: {e}")

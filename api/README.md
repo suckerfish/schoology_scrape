@@ -13,21 +13,22 @@ REST API client for fetching grade data from Schoology.
    ```bash
    SCHOOLOGY_API_KEY=your-api-key
    SCHOOLOGY_API_SECRET=your-api-secret
-   SCHOOLOGY_DOMAIN=yourdomain.schoology.com
    ```
 
 ## Files
 
 - **`client.py`** - Schoology API client with OAuth 1.0a authentication
-- **`fetch_grades.py`** - Legacy grade fetcher (dict-based output)
-- **`fetch_grades_v2.py`** - Current grade fetcher (Pydantic models with IDs)
+- **`fetch_grades_v2.py`** - Grade fetcher (Pydantic models with IDs)
 
 ## API Endpoints Used
 
 - `/users/me` - Get current user ID
 - `/users/{user_id}/sections` - Get enrolled courses
 - `/users/{user_id}/grades` - Get all grades with timestamps
-- `/sections/{section_id}/assignments` - Get assignment details
+- `/sections/{section_id}` - Resolve a section reported only by the grades feed
+- `/sections/{section_id}/assignments` - List every assignment in a section (one call)
+- `/sections/{section_id}/assignments/{id}` - Per-assignment fallback when the listing is denied
+- `/sections/{section_id}/assignments/{id}/comments` - Teacher comments
 - `/sections/{section_id}/grading_categories` - Get category names and weights
 
 ## Usage
@@ -44,8 +45,14 @@ for section in grade_data.sections:
     print(f"{section.course_title}: {len(section.periods)} periods")
 ```
 
+## Section ID Matching
+
+The grades feed and the sections list can name the same course with different
+section IDs, and detail endpoints are usually authorized on only one of them.
+The fetcher resolves a missing section by calling `/sections/{id}` and joining
+to the enrollment on `course_id`, then tries both IDs for each detail request.
+
 ## Known Limitations
 
-- Some assignments return 403 Forbidden (permission restrictions)
-- Section IDs from grades endpoint sometimes differ from enrollments (handled with fuzzy matching)
-- Teacher comments less available than web scraping
+- A section may deny detail endpoints on one of its two IDs; the fetcher retries with the other
+- Teacher comments are less available than with web scraping

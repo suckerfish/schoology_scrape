@@ -31,23 +31,20 @@ class GradePipelineV2:
         self.logger = logging.getLogger(__name__)
         self.config = get_config()
 
+        # Ensure data directory exists
+        self.data_dir = Path(self.config.app.data_directory)
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+
         # Initialize pipeline components
         self.fetcher = APIGradeFetcherV2()
-        self.store = GradeStore()
+        self.store = GradeStore(str(self.data_dir / "grades.db"))
         self.comparator = IDComparator(self.store)
         self.notifier = GradeNotifier()
         self.change_logger = ChangeLogger(self.config)
 
-        # Ensure data directory exists
-        self.data_dir = Path('data')
-        self.data_dir.mkdir(exist_ok=True)
-
-    def run_full_pipeline(self, download_path: str = '.') -> bool:
+    def run_full_pipeline(self) -> bool:
         """
         Execute the complete grade monitoring pipeline.
-
-        Args:
-            download_path: Path for driver downloads (unused, kept for compatibility)
 
         Returns:
             bool: True if pipeline completed successfully

@@ -5,7 +5,6 @@ This module provides a simple database layer for storing the current state
 of grades, replacing the old file-based snapshot comparison approach.
 """
 import sqlite3
-import json
 import logging
 from pathlib import Path
 from datetime import datetime
@@ -35,7 +34,7 @@ class GradeStore:
             db_path: Path to SQLite database file
         """
         self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(exist_ok=True)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.logger = logging.getLogger(__name__)
         self._init_db()
 
@@ -44,6 +43,9 @@ class GradeStore:
         """Context manager for database connections"""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
+        # SQLite ignores the schema's ON DELETE CASCADE unless this is set,
+        # and it must be set on every connection.
+        conn.execute("PRAGMA foreign_keys = ON")
         try:
             yield conn
             conn.commit()
@@ -159,15 +161,62 @@ class GradeStore:
                 self._save_section(cursor, section, grade_data.timestamp)
 
             self.logger.info(f"Saved snapshot {snapshot_id} with {len(grade_data.sections)} sections")
+
+            self._prune_stale_sections(cursor, grade_data)
+            self._prune_snapshots(cursor)
+
             return snapshot_id
+
+    def _prune_stale_sections(self, cursor: sqlite3.Cursor, grade_data: GradeData):
+        """
+        Delete sections the API no longer reports, and their nested rows.
+
+        Courses from previous school years otherwise accumulate forever. An
+        empty feed is treated as a fetch problem, not as "everything ended".
+        """
+        if not grade_data.sections:
+            self.logger.warning("Feed reported no sections; skipping section pruning")
+            return
+
+        current_ids = [section.section_id for section in grade_data.sections]
+        placeholders = ",".join("?" * len(current_ids))
+
+        cursor.execute(
+            f"SELECT section_id, course_title FROM sections WHERE section_id NOT IN ({placeholders})",
+            current_ids
+        )
+        stale = cursor.fetchall()
+        if not stale:
+            return
+
+        cursor.execute(
+            f"DELETE FROM sections WHERE section_id NOT IN ({placeholders})",
+            current_ids
+        )
+        titles = ", ".join(f"{row['course_title']} ({row['section_id']})" for row in stale)
+        self.logger.info(f"Pruned {len(stale)} section(s) no longer reported: {titles}")
+
+    def _prune_snapshots(self, cursor: sqlite3.Cursor, keep: int = 100):
+        """Cap the snapshots table; only the most recent row is ever read."""
+        cursor.execute(
+            "DELETE FROM snapshots WHERE id NOT IN "
+            "(SELECT id FROM snapshots ORDER BY id DESC LIMIT ?)",
+            (keep,)
+        )
+        if cursor.rowcount > 0:
+            self.logger.info(f"Pruned {cursor.rowcount} old snapshot row(s)")
 
     def _save_section(self, cursor: sqlite3.Cursor, section: Section, timestamp: datetime):
         """Save section and its nested data"""
         cursor.execute(
             """
-            INSERT OR REPLACE INTO sections
+            INSERT INTO sections
             (section_id, course_title, section_title, last_updated)
             VALUES (?, ?, ?, ?)
+            ON CONFLICT(section_id) DO UPDATE SET
+                course_title = excluded.course_title,
+                section_title = excluded.section_title,
+                last_updated = excluded.last_updated
             """,
             (section.section_id, section.course_title, section.section_title, timestamp.isoformat())
         )
@@ -179,9 +228,13 @@ class GradeStore:
         """Save period and its nested data"""
         cursor.execute(
             """
-            INSERT OR REPLACE INTO periods
+            INSERT INTO periods
             (period_id, section_id, name, last_updated)
             VALUES (?, ?, ?, ?)
+            ON CONFLICT(period_id) DO UPDATE SET
+                section_id = excluded.section_id,
+                name = excluded.name,
+                last_updated = excluded.last_updated
             """,
             (period.period_id, section_id, period.name, timestamp.isoformat())
         )
@@ -195,9 +248,13 @@ class GradeStore:
 
         cursor.execute(
             """
-            INSERT OR REPLACE INTO categories
+            INSERT INTO categories
             (category_id, period_id, name, weight, last_updated)
             VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(category_id, period_id) DO UPDATE SET
+                name = excluded.name,
+                weight = excluded.weight,
+                last_updated = excluded.last_updated
             """,
             (category.category_id, period_id, category.name, weight_str, timestamp.isoformat())
         )
@@ -214,10 +271,20 @@ class GradeStore:
 
         cursor.execute(
             """
-            INSERT OR REPLACE INTO assignments
+            INSERT INTO assignments
             (assignment_id, category_id, period_id, title, earned_points, max_points,
              exception, comment, due_date, last_updated)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(assignment_id) DO UPDATE SET
+                category_id = excluded.category_id,
+                period_id = excluded.period_id,
+                title = excluded.title,
+                earned_points = excluded.earned_points,
+                max_points = excluded.max_points,
+                exception = excluded.exception,
+                comment = excluded.comment,
+                due_date = excluded.due_date,
+                last_updated = excluded.last_updated
             """,
             (assignment.assignment_id, category_id, period_id, assignment.title,
              earned_str, max_str, assignment.exception, assignment.comment, due_str, timestamp.isoformat())

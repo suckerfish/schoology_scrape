@@ -64,7 +64,7 @@ class GradeNotifier:
             message = NotificationMessage(
                 title=title,
                 content=formatted_message,
-                priority=self._determine_priority(changes),
+                priority="normal",
                 metadata=metadata
             )
             
@@ -131,85 +131,6 @@ class GradeNotifier:
         except Exception as e:
             self.logger.error(f"Error sending error notification: {e}")
             return False
-    
-    def send_status_notification(self, status_message: str, success: bool = True) -> bool:
-        """
-        Send notification about system status
-        
-        Args:
-            status_message: Status message
-            success: Whether this is a success or failure status
-            
-        Returns:
-            bool: True if at least one notification was sent successfully
-        """
-        if not self.notification_manager:
-            return False
-        
-        try:
-            message = NotificationMessage(
-                title=f"Schoology Scraper {'Success' if success else 'Status'}",
-                content=status_message,
-                priority="low" if success else "normal"
-            )
-            
-            # For status notifications, use only basic providers
-            basic_providers = [p for p in self.notification_manager.get_available_providers() 
-                             if p in ['email']]
-            
-            results = self.notification_manager.send_notification(message, providers=basic_providers)
-            
-            return any(results.values())
-            
-        except Exception as e:
-            self.logger.error(f"Error sending status notification: {e}")
-            return False
-    
-    def _determine_priority(self, changes: dict[str, Any]) -> str:
-        """
-        Determine notification priority based on the type and scale of changes
-        
-        Args:
-            changes: Change data from comparator
-            
-        Returns:
-            Priority level: 'low', 'normal', 'high', 'emergency'
-        """
-        if changes.get('type') == 'initial':
-            return 'low'
-        
-        # Count the number of changes
-        detailed_changes = changes.get('detailed_changes', [])
-        change_count = len(detailed_changes)
-        
-        # Check for grade-related changes (more important)
-        grade_related_changes = 0
-        for change in detailed_changes:
-            path = change.get('path', '')
-            if any(keyword in path.lower() for keyword in ['grade', 'score', 'points']):
-                grade_related_changes += 1
-        
-        # Determine priority
-        if grade_related_changes > 5:
-            return 'high'
-        elif grade_related_changes > 0:
-            return 'normal'
-        elif change_count > 10:
-            return 'normal'
-        else:
-            return 'low'
-    
-    def test_notifications(self) -> dict[str, bool]:
-        """
-        Test all notification providers
-
-        Returns:
-            dict mapping provider names to test results
-        """
-        if not self.notification_manager:
-            return {}
-        
-        return self.notification_manager.test_providers()
     
     def get_available_providers(self) -> list[str]:
         """Get list of available notification providers"""

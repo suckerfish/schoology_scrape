@@ -14,7 +14,6 @@ from api.client import SchoologyAPIClient
 from shared.models import Assignment, Category, Period, Section, GradeData
 
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
@@ -27,6 +26,7 @@ class APIGradeFetcherV2:
         self.categories_cache = {}
         self.assignments_cache = {}
         self.enrollment_id_map = {}  # Maps grade_section_id -> enrollment_section_id
+        self.bulk_loaded = set()  # grade_section_ids whose assignment list was fetched
 
     def _parse_grade(self, grade_obj: Dict[str, Any]) -> Tuple[Optional[Decimal], Optional[Decimal], Optional[str]]:
         """
@@ -94,7 +94,46 @@ class APIGradeFetcherV2:
             logger.warning(f"Could not parse due date: {due_date_str}")
             return None
 
-    def _get_assignment_comment(self, section_id: str, assignment_id: str, grade_obj: Dict[str, Any]) -> str:
+    def _detail_ids(self, grade_section_id: str) -> List[str]:
+        """
+        Section IDs to try for detail endpoints, best first.
+
+        The grades feed and the user's sections list can name the same course
+        with different IDs, and only one of them is usually authorized.
+        """
+        enrollment_id = self.enrollment_id_map.get(grade_section_id, grade_section_id)
+        if enrollment_id == grade_section_id:
+            return [grade_section_id]
+        return [enrollment_id, grade_section_id]
+
+    def _load_section_assignments(self, grade_section_id: str) -> None:
+        """
+        Fetch every assignment for a section in one call.
+
+        Saves one API request per assignment. Some sections deny the listing
+        endpoint, in which case the per-assignment fallback still applies.
+        """
+        if grade_section_id in self.bulk_loaded:
+            return
+        self.bulk_loaded.add(grade_section_id)
+
+        for section_id in self._detail_ids(grade_section_id):
+            try:
+                assignments = self.client.get_assignments(section_id)
+            except Exception as e:
+                logger.debug(f"Assignment listing denied for section {section_id}: {e}")
+                continue
+
+            for assignment in assignments:
+                cache_key = f"{grade_section_id}:{assignment['id']}"
+                self.assignments_cache[cache_key] = assignment
+
+            logger.info(f"  Loaded {len(assignments)} assignments for section {section_id} in one call")
+            return
+
+        logger.warning(f"  No assignment listing available for section {grade_section_id}, falling back to per-assignment fetches")
+
+    def _get_assignment_comment(self, grade_section_id: str, assignment_id: str, grade_obj: Dict[str, Any]) -> str:
         """
         Get comment for assignment.
 
@@ -107,11 +146,12 @@ class APIGradeFetcherV2:
             return grade_obj['comment']
 
         # Try to get from comments endpoint
-        comments = self.client.get_assignment_comments(section_id, assignment_id)
-        if comments:
-            # Return most recent comment
-            sorted_comments = sorted(comments, key=lambda x: x.get('created', 0), reverse=True)
-            return sorted_comments[0].get('comment', 'No comment')
+        for section_id in self._detail_ids(grade_section_id):
+            comments = self.client.get_assignment_comments(section_id, assignment_id)
+            if comments:
+                # Return most recent comment
+                sorted_comments = sorted(comments, key=lambda x: x.get('created', 0), reverse=True)
+                return sorted_comments[0].get('comment', 'No comment')
 
         return 'No comment'
 
@@ -120,29 +160,20 @@ class APIGradeFetcherV2:
         cache_key = f"{grade_section_id}:{assignment_id}"
 
         if cache_key not in self.assignments_cache:
-            enrollment_id = self.enrollment_id_map.get(grade_section_id, grade_section_id)
-
             assignment = None
 
-            # Try enrollment ID
-            if enrollment_id != grade_section_id:
+            for section_id in self._detail_ids(grade_section_id):
                 try:
-                    assignment = self.client.get_assignment_details(enrollment_id, assignment_id)
-                    logger.debug(f"Fetched assignment {assignment_id} using enrollment ID {enrollment_id}")
+                    assignment = self.client.get_assignment_details(section_id, assignment_id)
+                    logger.debug(f"Fetched assignment {assignment_id} using section ID {section_id}")
+                    break
                 except Exception as e:
-                    logger.debug(f"Could not fetch with enrollment ID {enrollment_id}: {e}")
-
-            # Fall back to grade section ID
-            if not assignment:
-                try:
-                    assignment = self.client.get_assignment_details(grade_section_id, assignment_id)
-                    logger.debug(f"Fetched assignment {assignment_id} using grade section ID {grade_section_id}")
-                except Exception as e:
-                    logger.warning(f"Could not fetch assignment {assignment_id} with either ID: {e}")
+                    logger.debug(f"Could not fetch assignment {assignment_id} with section ID {section_id}: {e}")
 
             if assignment:
                 self.assignments_cache[cache_key] = assignment
             else:
+                logger.warning(f"Could not fetch assignment {assignment_id} in section {grade_section_id}")
                 self.assignments_cache[cache_key] = {'title': f'Assignment {assignment_id}'}
 
         return self.assignments_cache[cache_key].get('title', f'Assignment {assignment_id}')
@@ -161,25 +192,19 @@ class APIGradeFetcherV2:
     def _get_category_info(self, grade_section_id: str, category_id: int) -> Tuple[str, Optional[Decimal]]:
         """Get category name and weight"""
         if grade_section_id not in self.categories_cache:
-            enrollment_id = self.enrollment_id_map.get(grade_section_id, grade_section_id)
-
             categories = None
 
-            # Try enrollment ID
-            if enrollment_id != grade_section_id:
+            for section_id in self._detail_ids(grade_section_id):
                 try:
-                    categories = self.client.get_grading_categories(enrollment_id)
-                    logger.debug(f"Fetched categories using enrollment ID {enrollment_id}")
+                    categories = self.client.get_grading_categories(section_id)
+                    logger.debug(f"Fetched categories using section ID {section_id}")
+                    break
                 except Exception as e:
-                    logger.debug(f"Could not fetch categories with enrollment ID: {e}")
+                    logger.debug(f"Could not fetch categories with section ID {section_id}: {e}")
 
-            # Fall back to grade section ID
             if not categories:
-                try:
-                    categories = self.client.get_grading_categories(grade_section_id)
-                except Exception as e:
-                    logger.warning(f"Could not fetch categories for section {grade_section_id}: {e}")
-                    categories = []
+                logger.warning(f"Could not fetch categories for section {grade_section_id}")
+                categories = []
 
             self.categories_cache[grade_section_id] = {
                 cat['id']: cat for cat in categories
@@ -213,17 +238,21 @@ class APIGradeFetcherV2:
         logger.info("Fetching all grades...")
         all_grades = self.client.get_grades()
 
-        # Build mapping of enrollment IDs
+        # Build mapping of enrollment IDs, indexed by section ID and by course ID
         section_map = {}
+        course_index = {}
         for section_data in sections_list:
-            enrollment_id = section_data['id']
-            course_title = section_data.get('course_title', 'Unknown Course')
-            section_title = section_data.get('section_title', '')
-            section_map[enrollment_id] = {
-                'course_title': course_title,
-                'section_title': section_title,
+            enrollment_id = str(section_data['id'])
+            info = {
+                'course_title': section_data.get('course_title', 'Unknown Course'),
+                'section_title': section_data.get('section_title', ''),
                 'enrollment_id': enrollment_id
             }
+            section_map[enrollment_id] = info
+
+            course_id = section_data.get('course_id')
+            if course_id:
+                course_index[str(course_id)] = info
 
         # Process grades and build Section models
         sections = []
@@ -237,17 +266,27 @@ class APIGradeFetcherV2:
 
             if not section_info:
                 # The user's sections list can carry a different ID than the
-                # grades feed. Ask the API for this section directly.
+                # grades feed. Ask the API for this section directly, then use
+                # its course_id to find the matching enrollment. Detail
+                # endpoints are usually authorized only on the enrollment ID.
                 logger.warning(f"Section ID {grade_section_id} not in sections list, looking it up...")
                 try:
                     detail = self.client.get_section(grade_section_id)
+                    enrolled = course_index.get(str(detail.get('course_id', '')))
+
                     section_info = {
                         'course_title': detail.get('course_title', 'Unknown Course'),
                         'section_title': detail.get('section_title', ''),
-                        'enrollment_id': grade_section_id
+                        'enrollment_id': enrolled['enrollment_id'] if enrolled else grade_section_id
                     }
-                    matched_enrollment_id = grade_section_id
-                    logger.info(f"  Resolved {grade_section_id} to {section_info['course_title']}")
+                    matched_enrollment_id = section_info['enrollment_id']
+
+                    if enrolled:
+                        logger.info(f"  Resolved {grade_section_id} to {section_info['course_title']} "
+                                    f"(enrollment ID {matched_enrollment_id})")
+                    else:
+                        logger.info(f"  Resolved {grade_section_id} to {section_info['course_title']} "
+                                    f"(no matching enrollment)")
                 except Exception as e:
                     logger.warning(f"  Direct lookup failed for {grade_section_id}: {e}")
 
@@ -276,6 +315,9 @@ class APIGradeFetcherV2:
             self.enrollment_id_map[grade_section_id] = matched_enrollment_id
 
             logger.info(f"Processing {section_info['course_title']}... (grade_id={grade_section_id})")
+
+            # One request for every assignment in the section, instead of one each
+            self._load_section_assignments(grade_section_id)
 
             # Create Section model
             section = Section(
@@ -351,6 +393,7 @@ class APIGradeFetcherV2:
 
 def main():
     """Main execution for testing"""
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     try:
         fetcher = APIGradeFetcherV2()
 
