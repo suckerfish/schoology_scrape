@@ -64,6 +64,10 @@ class SchoologyAPIClient:
         data = self._get(f'users/{user_id}/sections')
         return data.get('section', [])
 
+    def get_section(self, section_id: str) -> Dict[str, Any]:
+        """Get a single section by its section ID"""
+        return self._get(f'sections/{section_id}')
+
     def get_grades(self, section_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Get grades for user

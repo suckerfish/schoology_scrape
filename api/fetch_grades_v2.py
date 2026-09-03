@@ -236,8 +236,23 @@ class APIGradeFetcherV2:
             matched_enrollment_id = None
 
             if not section_info:
+                # The user's sections list can carry a different ID than the
+                # grades feed. Ask the API for this section directly.
+                logger.warning(f"Section ID {grade_section_id} not in sections list, looking it up...")
+                try:
+                    detail = self.client.get_section(grade_section_id)
+                    section_info = {
+                        'course_title': detail.get('course_title', 'Unknown Course'),
+                        'section_title': detail.get('section_title', ''),
+                        'enrollment_id': grade_section_id
+                    }
+                    matched_enrollment_id = grade_section_id
+                    logger.info(f"  Resolved {grade_section_id} to {section_info['course_title']}")
+                except Exception as e:
+                    logger.warning(f"  Direct lookup failed for {grade_section_id}: {e}")
+
+            if not section_info:
                 # Try to match by offset (known API quirk)
-                logger.warning(f"Section ID {grade_section_id} not in sections list, trying to match...")
                 for offset in [-1, 1, -2, 2]:
                     nearby_id = str(int(grade_section_id) + offset)
                     if nearby_id in section_map:
