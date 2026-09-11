@@ -16,5 +16,13 @@ data_directory = "/app/data"
 enable_change_logging = true
 change_log_retention_days = 90
 
+[history]
+# Point-in-time grade history for time-series dashboards.
+# Each run stores one row per assignment in assignment_history.
+enabled = true
+# Snapshots to keep. Pruning a snapshot cascades to its history rows, so this
+# is the history retention knob. 0 keeps everything (~2 rows/assignment/day).
+retention_snapshots = 0
+
 [notifications]
 email_enabled = true

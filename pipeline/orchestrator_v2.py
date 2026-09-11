@@ -37,7 +37,11 @@ class GradePipelineV2:
 
         # Initialize pipeline components
         self.fetcher = APIGradeFetcherV2()
-        self.store = GradeStore(str(self.data_dir / "grades.db"))
+        self.store = GradeStore(
+            str(self.data_dir / "grades.db"),
+            history_enabled=self.config.history.enabled,
+            snapshot_retention=self.config.history.retention_snapshots,
+        )
         self.comparator = IDComparator(self.store)
         self.notifier = GradeNotifier()
         self.change_logger = ChangeLogger(self.config)

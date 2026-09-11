@@ -3,7 +3,7 @@ Centralized configuration management for Schoology Grade Scraper.
 Loads non-sensitive settings from config.toml and credentials from .env files.
 """
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 from dotenv import load_dotenv
 import sys
@@ -42,6 +42,13 @@ class AppConfig:
 
 
 @dataclass
+class HistoryConfig:
+    """Point-in-time grade history configuration."""
+    enabled: bool = True
+    retention_snapshots: int = 0  # 0 = keep every snapshot
+
+
+@dataclass
 class LoggingConfig:
     """Logging behavior configuration."""
     enable_change_logging: bool = True
@@ -55,6 +62,7 @@ class Config:
     notifications: NotificationConfig
     app: AppConfig
     logging: LoggingConfig
+    history: HistoryConfig = field(default_factory=HistoryConfig)
     
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -128,11 +136,17 @@ def load_config(env_file: Optional[str] = None, config_file: str = "config.toml"
         change_log_retention_days=toml_config.get('logging', {}).get('change_log_retention_days', 90)
     )
 
+    history_config = HistoryConfig(
+        enabled=toml_config.get('history', {}).get('enabled', True),
+        retention_snapshots=toml_config.get('history', {}).get('retention_snapshots', 0)
+    )
+
     return Config(
         schoology=schoology_config,
         notifications=notification_config,
         app=app_config,
-        logging=logging_config
+        logging=logging_config,
+        history=history_config
     )
 
 

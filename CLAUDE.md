@@ -29,7 +29,8 @@ Automated grade monitoring system: polls Schoology API → detects changes via I
 - `email_sender`/`email_password`/`email_receiver` - Email notifications (optional)
 - `HEALTHCHECKS_URL` - Uptime monitoring (pings on each run, optional)
 
-**App settings** (`config.toml`): log level, retries, data directory, change-log retention, email toggle
+**App settings** (`config.toml`): log level, retries, data directory, change-log retention,
+email toggle, grade-history toggle and snapshot retention
 
 ## Data Model
 
@@ -39,7 +40,15 @@ GradeData → Section → Period → Category → Assignment
 
 Each assignment has: `assignment_id`, `title`, `earned_points`, `max_points`, `exception`, `comment`, `due_date`
 
-State stored in SQLite (`data/grades.db`) with tables: `snapshots`, `sections`, `periods`, `categories`, `assignments`
+State stored in SQLite (`data/grades.db`) with tables: `snapshots`, `sections`, `periods`,
+`categories`, `assignments`, `assignment_history`, `assignment_meta`
+
+`assignments` holds current state only (upserts overwrite). `assignment_history` is
+append-only — one row per assignment per snapshot — and is what time-series dashboards
+read. `assignment_meta` keeps each assignment's labels (title, course, period, category)
+so a series stays readable after its section is pruned. History rows hang off
+`snapshots` with `ON DELETE CASCADE`, so `[history] retention_snapshots` in `config.toml`
+is the real history retention knob (0 = keep everything).
 
 Writes are upserts, not `INSERT OR REPLACE`: foreign keys are enforced with
 `ON DELETE CASCADE`, so a REPLACE would cascade-delete a row's children. Sections
@@ -60,6 +69,12 @@ docker compose down         # Stop
 uv pip install -r requirements.txt  # Install deps
 python main.py                      # Single run
 python -m pytest tests/ -v          # Run tests
+```
+
+**Backfill grade history** (recovers pre-history data from the change log):
+```bash
+python scripts/backfill_history.py --dry-run   # report what would be written
+python scripts/backfill_history.py             # write it
 ```
 
 ## Key Implementation Details
@@ -83,6 +98,10 @@ python -m pytest tests/ -v          # Run tests
 
 ## Recent Changes
 
+- Added `assignment_history` / `assignment_meta` for point-in-time grades, plus
+  `get_assignment_history()`, `get_history_at()` and `get_snapshot_times()` for scrubbing
+  dashboards; `scripts/backfill_history.py` replays `grade_changes.log` into it
+- Snapshots are ordered by `timestamp`, not `id`, since backfill inserts historical rows last
 - Section IDs are resolved by direct `/sections/{id}` lookup and joined to enrollments on `course_id`; detail endpoints try both IDs
 - Assignments are fetched per section in one bulk call, with a per-assignment fallback
 - Removed dead code: `pipeline/error_handling.py`, unused notification/config/store methods, orphaned config keys
