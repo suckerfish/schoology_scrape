@@ -53,7 +53,7 @@ is the real history retention knob (0 = keep everything).
 Writes are upserts, not `INSERT OR REPLACE`: foreign keys are enforced with
 `ON DELETE CASCADE`, so a REPLACE would cascade-delete a row's children. Sections
 missing from the API feed are pruned on save (skipped if the feed is empty), and
-the `snapshots` table is capped at 100 rows.
+the `snapshots` table is capped by `[history] retention_snapshots` (0 = uncapped).
 
 ## Essential Commands
 
