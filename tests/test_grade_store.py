@@ -257,5 +257,45 @@ class TestUpdateBehavior:
         assert len(temp_db.get_all_assignments()) == 1
 
 
+class TestGradedAt:
+    """Tests for the graded_at column"""
+
+    def test_graded_at_round_trips_separately_from_due_date(self, temp_db, sample_grade_data):
+        """graded_at is stored in its own column and due_date stays as-is"""
+        assignment = sample_grade_data.sections[0].periods[0].categories[0].assignments[0]
+        assignment.graded_at = datetime(2025, 1, 20, 9, 30)
+        temp_db.save_grade_data(sample_grade_data)
+
+        stored = temp_db.get_assignment("100")
+        assert stored.due_date == datetime(2025, 1, 15, 23, 59)
+        assert stored.graded_at == datetime(2025, 1, 20, 9, 30)
+
+    def test_undated_assignment_keeps_null_due_date(self, temp_db, sample_grade_data):
+        """A grade column with no due date gets graded_at only"""
+        assignment = sample_grade_data.sections[0].periods[0].categories[0].assignments[0]
+        assignment.due_date = None
+        assignment.graded_at = datetime(2025, 1, 20, 9, 30)
+        temp_db.save_grade_data(sample_grade_data)
+
+        with temp_db._get_connection() as conn:
+            row = conn.execute(
+                "SELECT due_date, graded_at FROM assignments WHERE assignment_id = '100'"
+            ).fetchone()
+        assert row['due_date'] is None
+        assert row['graded_at'] == "2025-01-20T09:30:00"
+
+    def test_adds_column_to_existing_database(self, temp_db):
+        """A database created before graded_at gains the column on startup"""
+        with temp_db._get_connection() as conn:
+            conn.execute("ALTER TABLE assignments DROP COLUMN graded_at")
+
+        GradeStore(temp_db.db_path)
+        GradeStore(temp_db.db_path)  # second start must not fail
+
+        with temp_db._get_connection() as conn:
+            columns = {row['name'] for row in conn.execute("PRAGMA table_info(assignments)")}
+        assert 'graded_at' in columns
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

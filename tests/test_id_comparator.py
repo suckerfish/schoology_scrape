@@ -158,6 +158,19 @@ def test_new_assignment_detected(temp_db, sample_grade_data):
     assert change.new_grade == "10 / 10"
 
 
+def test_graded_at_change_not_detected(temp_db, sample_grade_data):
+    """A re-entered grade changes only graded_at and must not count as a change"""
+    comparator = IDComparator(temp_db)
+    assignment = sample_grade_data.sections[0].periods[0].categories[0].assignments[0]
+    assignment.graded_at = datetime(2025, 1, 20, 9, 30)
+    comparator.detect_changes(sample_grade_data)
+
+    assignment.graded_at = datetime(2025, 2, 1, 8, 0)
+    report = comparator.detect_changes(sample_grade_data)
+
+    assert report.has_changes() is False
+
+
 def test_comment_change_detected(temp_db, sample_grade_data):
     """Test that comment changes are detected"""
     comparator = IDComparator(temp_db)

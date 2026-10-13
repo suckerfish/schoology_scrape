@@ -23,6 +23,8 @@ class Assignment(BaseModel):
         exception: Exception status (Missing, Excused, Incomplete, None)
         comment: Teacher comment
         due_date: Due date as datetime (None if no due date)
+        graded_at: When the grade was entered (None if unknown). Kept apart
+            from due_date, and not compared for change detection.
     """
     assignment_id: str
     title: str
@@ -31,6 +33,7 @@ class Assignment(BaseModel):
     exception: Optional[str] = None  # "Missing", "Excused", "Incomplete"
     comment: str = "No comment"
     due_date: Optional[datetime] = None
+    graded_at: Optional[datetime] = None
 
     @field_validator('earned_points', 'max_points', mode='before')
     @classmethod

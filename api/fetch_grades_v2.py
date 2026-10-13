@@ -76,11 +76,15 @@ class APIGradeFetcherV2:
 
         return earned, max_pts, exception_str
 
-    def _parse_timestamp(self, timestamp: int) -> datetime:
+    def _parse_timestamp(self, timestamp: Any) -> Optional[datetime]:
         """Convert Unix timestamp to datetime"""
         if not timestamp:
             return None
-        return datetime.fromtimestamp(timestamp)
+        try:
+            return datetime.fromtimestamp(int(timestamp))
+        except (TypeError, ValueError):
+            logger.warning(f"Could not parse timestamp: {timestamp}")
+            return None
 
     def _parse_due_date(self, due_date_str: str) -> Optional[datetime]:
         """Parse due date string from API"""
@@ -359,7 +363,8 @@ class APIGradeFetcherV2:
                         max_points=max_pts,
                         exception=exception,
                         comment=comment,
-                        due_date=due_date
+                        due_date=due_date,
+                        graded_at=self._parse_timestamp(assignment_grade.get('timestamp'))
                     )
 
                     # Group by category

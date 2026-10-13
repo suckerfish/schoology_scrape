@@ -115,10 +115,16 @@ class GradeStore:
                     exception TEXT,
                     comment TEXT,
                     due_date TEXT,
+                    graded_at TEXT,
                     last_updated TEXT NOT NULL,
                     FOREIGN KEY (category_id, period_id) REFERENCES categories(category_id, period_id) ON DELETE CASCADE
                 )
             """)
+
+            # Databases created before graded_at existed lack the column
+            columns = {row['name'] for row in cursor.execute("PRAGMA table_info(assignments)")}
+            if 'graded_at' not in columns:
+                cursor.execute("ALTER TABLE assignments ADD COLUMN graded_at TEXT")
 
             # Indexes for faster lookups
             cursor.execute("""
@@ -268,13 +274,14 @@ class GradeStore:
         earned_str = str(assignment.earned_points) if assignment.earned_points is not None else None
         max_str = str(assignment.max_points) if assignment.max_points is not None else None
         due_str = assignment.due_date.isoformat() if assignment.due_date else None
+        graded_str = assignment.graded_at.isoformat() if assignment.graded_at else None
 
         cursor.execute(
             """
             INSERT INTO assignments
             (assignment_id, category_id, period_id, title, earned_points, max_points,
-             exception, comment, due_date, last_updated)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             exception, comment, due_date, graded_at, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(assignment_id) DO UPDATE SET
                 category_id = excluded.category_id,
                 period_id = excluded.period_id,
@@ -284,10 +291,12 @@ class GradeStore:
                 exception = excluded.exception,
                 comment = excluded.comment,
                 due_date = excluded.due_date,
+                graded_at = excluded.graded_at,
                 last_updated = excluded.last_updated
             """,
             (assignment.assignment_id, category_id, period_id, assignment.title,
-             earned_str, max_str, assignment.exception, assignment.comment, due_str, timestamp.isoformat())
+             earned_str, max_str, assignment.exception, assignment.comment, due_str,
+             graded_str, timestamp.isoformat())
         )
 
     def get_assignment(self, assignment_id: str) -> Optional[Assignment]:
@@ -399,6 +408,7 @@ class GradeStore:
         earned = Decimal(row['earned_points']) if row['earned_points'] else None
         max_pts = Decimal(row['max_points']) if row['max_points'] else None
         due = datetime.fromisoformat(row['due_date']) if row['due_date'] else None
+        graded = datetime.fromisoformat(row['graded_at']) if row['graded_at'] else None
 
         return Assignment(
             assignment_id=row['assignment_id'],
@@ -407,7 +417,8 @@ class GradeStore:
             max_points=max_pts,
             exception=row['exception'],
             comment=row['comment'] or "No comment",
-            due_date=due
+            due_date=due,
+            graded_at=graded
         )
 
     def get_latest_snapshot_time(self) -> Optional[datetime]:

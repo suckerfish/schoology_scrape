@@ -37,7 +37,7 @@ Automated grade monitoring system: polls Schoology API → detects changes via I
 GradeData → Section → Period → Category → Assignment
 ```
 
-Each assignment has: `assignment_id`, `title`, `earned_points`, `max_points`, `exception`, `comment`, `due_date`
+Each assignment has: `assignment_id`, `title`, `earned_points`, `max_points`, `exception`, `comment`, `due_date`, `graded_at` (when the grade was entered; not used for change detection)
 
 State stored in SQLite (`data/grades.db`) with tables: `snapshots`, `sections`, `periods`, `categories`, `assignments`
 
