@@ -110,6 +110,16 @@ Each assignment contains:
 - **`data/grades.db`**: Current grade state
 - Sections that stop appearing in the API feed are pruned automatically, along with their periods, categories, and assignments
 
+### Querying (Datasette)
+The `datasette` service serves `grades.db` read-only with a SQL browser and JSON API on port 8001.
+Set `DATASETTE_BIND` in `.env` to a private IP (Tailscale or LAN); it defaults to `127.0.0.1`.
+The database holds student grades, so do not expose this port publicly.
+
+- Browse: `http://<bind-ip>:8001/grades`
+- Canned queries (`datasette/metadata.yml`): current class grades, course grade trend,
+  recent changes, recent assignment changes, missing or zero assignments
+- JSON: `http://<bind-ip>:8001/grades.json?sql=select+*+from+sections&_shape=array`
+
 ### Logs
 - **`logs/grade_changes.log`**: JSON change history, trimmed to the retention window
 - **`logs/grade_scraper.log`**: Application log, rotated at 5 MB

@@ -1,0 +1,82 @@
+title: Schoology grades
+description: Read-only view of the scraper's SQLite state. Student data — Tailscale only.
+databases:
+  grades:
+    queries:
+      class_grades:
+        title: Current class grades
+        description: Course grade and each grading period's grade, as Schoology reports them.
+        sql: |-
+          SELECT
+            s.course_title,
+            s.section_title,
+            CAST(s.course_grade AS REAL) AS course_grade,
+            s.course_letter,
+            p.name AS period,
+            CAST(p.grade AS REAL) AS period_grade,
+            p.letter AS period_letter,
+            s.last_updated
+          FROM sections s
+          LEFT JOIN periods p ON p.section_id = s.section_id
+          ORDER BY s.course_title, p.name
+
+      course_trend:
+        title: Course grade trend
+        description: Every recorded change to a course grade (grade_history kind='course'). Leave course blank for all courses.
+        sql: |-
+          SELECT
+            recorded_at,
+            label AS course,
+            CAST(old_value AS REAL) AS old_grade,
+            CAST(new_value AS REAL) AS new_grade,
+            ROUND(CAST(new_value AS REAL) - CAST(old_value AS REAL), 2) AS delta
+          FROM grade_history
+          WHERE kind = 'course'
+            AND (:course = '' OR label LIKE '%' || :course || '%')
+          ORDER BY label, recorded_at
+
+      recent_changes:
+        title: Recent grade changes
+        description: Grade changes of any kind (course, period, category, assignment) in the last N days.
+        sql: |-
+          SELECT recorded_at, kind, label, old_value, new_value
+          FROM grade_history
+          WHERE datetime(recorded_at) >= datetime('now', '-' || :days || ' days')
+          ORDER BY recorded_at DESC, kind
+        params:
+          - days
+
+      recent_assignment_changes:
+        title: Recent assignment changes
+        description: Assignment grades entered or changed in the last N days.
+        sql: |-
+          SELECT recorded_at, label, old_value, new_value
+          FROM grade_history
+          WHERE kind = 'assignment'
+            AND datetime(recorded_at) >= datetime('now', '-' || :days || ' days')
+          ORDER BY recorded_at DESC
+        params:
+          - days
+
+      missing_or_zero:
+        title: Missing or zero assignments
+        description: Assignments marked Missing or Incomplete, or scored 0 out of a positive max.
+        sql: |-
+          SELECT
+            s.course_title,
+            p.name AS period,
+            c.name AS category,
+            a.title,
+            a.exception,
+            a.earned_points,
+            a.max_points,
+            a.due_date,
+            a.comment
+          FROM assignments a
+          JOIN periods p ON p.period_id = a.period_id
+          JOIN sections s ON s.section_id = p.section_id
+          LEFT JOIN categories c
+            ON c.category_id = a.category_id AND c.period_id = a.period_id
+          WHERE a.exception IN ('Missing', 'Incomplete')
+             OR (CAST(a.earned_points AS REAL) = 0 AND CAST(a.max_points AS REAL) > 0)
+          ORDER BY a.due_date DESC

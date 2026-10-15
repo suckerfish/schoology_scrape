@@ -28,6 +28,7 @@ Automated grade monitoring system: polls Schoology API → detects changes via I
 - `gemini_key` - AI analysis (optional)
 - `email_sender`/`email_password`/`email_receiver` - Email notifications (optional)
 - `HEALTHCHECKS_URL` - Uptime monitoring (pings on each run, optional)
+- `DATASETTE_BIND` - Host IP for the Datasette port (default `127.0.0.1`; a Tailscale IP in production)
 
 **App settings** (`config.toml`): log level, retries, data directory, change-log retention, email toggle
 
@@ -45,6 +46,19 @@ Writes are upserts, not `INSERT OR REPLACE`: foreign keys are enforced with
 `ON DELETE CASCADE`, so a REPLACE would cascade-delete a row's children. Sections
 missing from the API feed are pruned on save (skipped if the feed is empty), and
 the `snapshots` table is capped at 100 rows.
+
+## Querying the Database (Datasette)
+
+The `datasette` service in `compose.yaml` serves `data/grades.db` read-only on port 8001
+(image built from `datasette/Dockerfile`, because the official image is amd64-only).
+Canned queries live in `datasette/metadata.yml`; edit that file when the schema changes.
+Grade data is private: bind only to `DATASETTE_BIND`, never publicly.
+
+Prefer the JSON API over SSH + sqlite3 for ad-hoc questions and dashboards:
+- `/grades.json?sql=SELECT...&_shape=array` - any read-only SELECT
+- `/grades/<table>.json?_shape=array` - table rows (supports `?col=value` filters)
+- `/grades/<canned_query>.json?param=...&_shape=array` - `class_grades`, `course_trend`
+  (`course`), `recent_changes` (`days`), `recent_assignment_changes` (`days`), `missing_or_zero`
 
 ## Essential Commands
 
