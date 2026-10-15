@@ -67,7 +67,11 @@ Prefer the JSON API over SSH + sqlite3 for ad-hoc questions and dashboards:
 - `/grades.json?sql=SELECT...&_shape=array` - any read-only SELECT
 - `/grades/<table>.json?_shape=array` - table rows (supports `?col=value` filters)
 - `/grades/<canned_query>.json?param=...&_shape=array` - `class_grades`, `course_trend`
-  (`course`), `recent_changes` (`days`), `recent_assignment_changes` (`days`), `missing_or_zero`
+  (`course`), `recent_changes` (`days`), `recent_assignment_changes` (`days`), `missing_or_zero`,
+  `grade_revisions` (late turn-ins and regrades), `assignment_timeline` (`assignment`)
+
+`grade_history` began on 2026-10-14. `python main.py --backfill-history` copies older assignment
+changes from `logs/grade_changes.log` (90-day retention) into it; it is idempotent.
 
 ## Essential Commands
 

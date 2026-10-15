@@ -80,3 +80,50 @@ databases:
           WHERE a.exception IN ('Missing', 'Incomplete')
              OR (CAST(a.earned_points AS REAL) = 0 AND CAST(a.max_points AS REAL) > 0)
           ORDER BY a.due_date DESC
+
+      grade_revisions:
+        title: Late turn-ins and regrades
+        description: Assignments whose grade changed after it was first set. Covers Missing or Incomplete work turned in later, and redone work regraded up or down.
+        sql: |-
+          WITH h AS (
+            SELECT
+              recorded_at, item_id, label, old_value, new_value,
+              CASE WHEN instr(old_value, ' / ') > 0
+                THEN CAST(substr(old_value, 1, instr(old_value, ' / ') - 1) AS REAL)
+                     / NULLIF(CAST(substr(old_value, instr(old_value, ' / ') + 3) AS REAL), 0) * 100
+              END AS old_pct,
+              CASE WHEN instr(new_value, ' / ') > 0
+                THEN CAST(substr(new_value, 1, instr(new_value, ' / ') - 1) AS REAL)
+                     / NULLIF(CAST(substr(new_value, instr(new_value, ' / ') + 3) AS REAL), 0) * 100
+              END AS new_pct
+            FROM grade_history
+            WHERE kind = 'assignment'
+              AND old_value IS NOT NULL
+              AND old_value != 'Not graded'
+          )
+          SELECT
+            recorded_at,
+            CASE
+              WHEN old_value IN ('Missing', 'Incomplete')
+                   AND new_value NOT IN ('Missing', 'Incomplete') THEN 'turned in late'
+              WHEN new_value IN ('Missing', 'Incomplete') THEN 'marked ' || lower(new_value)
+              WHEN new_pct > old_pct THEN 'regrade up'
+              WHEN new_pct < old_pct THEN 'regrade down'
+              ELSE 'changed'
+            END AS revision,
+            label,
+            old_value,
+            new_value,
+            ROUND(new_pct - old_pct, 1) AS pct_change
+          FROM h
+          ORDER BY recorded_at DESC
+
+      assignment_timeline:
+        title: Assignment grade timeline
+        description: Every recorded grade for assignments whose label matches the text (course or title).
+        sql: |-
+          SELECT recorded_at, label, old_value, new_value
+          FROM grade_history
+          WHERE kind = 'assignment'
+            AND label LIKE '%' || :assignment || '%'
+          ORDER BY label, recorded_at

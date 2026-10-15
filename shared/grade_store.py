@@ -4,6 +4,7 @@ SQLite-based grade data storage for efficient ID-based change detection.
 This module provides a simple database layer for storing the current state
 of grades, replacing the old file-based snapshot comparison approach.
 """
+import json
 import sqlite3
 import logging
 from pathlib import Path
@@ -264,6 +265,56 @@ class GradeStore:
             """,
             (timestamp.isoformat(), kind, item_id, section_id, label, old_value, new_value)
         )
+
+    def backfill_history(self, log_path: Path) -> int:
+        """
+        Copy assignment changes from the JSON change log into grade_history.
+
+        grade_history started after the change log, and the log is trimmed to
+        its retention window, so older changes would otherwise be lost. Only
+        log entries older than the first grade_history row are copied, which
+        makes the backfill safe to run more than once.
+
+        Returns:
+            Number of rows inserted
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            first = cursor.execute("SELECT MIN(recorded_at) FROM grade_history").fetchone()[0]
+            cutoff = datetime.fromisoformat(first) if first else None
+
+            # The log names sections by full name only; pruned sections map to ''
+            section_ids = {
+                (f"{row['course_title']}: {row['section_title']}" if row['section_title']
+                 else row['course_title']): row['section_id']
+                for row in cursor.execute("SELECT section_id, course_title, section_title FROM sections")
+            }
+
+            inserted = 0
+            for line in log_path.read_text().splitlines():
+                try:
+                    entry = json.loads(line)
+                    timestamp = datetime.fromisoformat(entry['timestamp'])
+                except (json.JSONDecodeError, KeyError, ValueError):
+                    continue
+                if cutoff and timestamp >= cutoff:
+                    continue
+
+                for change in entry.get('changes', []):
+                    if change.get('change_type') not in ('new_assignment', 'grade_updated'):
+                        continue
+                    if change.get('old_grade') == change.get('new_grade'):
+                        continue
+                    section = change.get('section') or ''
+                    self._record_history(
+                        cursor, timestamp, 'assignment', change['assignment_id'],
+                        section_ids.get(section, ''), f"{section} / {change.get('assignment_title', '')}",
+                        change.get('old_grade'), change.get('new_grade')
+                    )
+                    inserted += 1
+
+            self.logger.info(f"Backfilled {inserted} grade_history row(s) from {log_path}")
+            return inserted
 
     def _old_value(self, cursor: sqlite3.Cursor, query: str, params: tuple) -> Optional[str]:
         row = cursor.execute(query, params).fetchone()

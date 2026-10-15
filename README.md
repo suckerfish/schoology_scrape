@@ -123,7 +123,8 @@ The database holds student grades, so do not expose this port publicly.
 
 - Browse: `http://<bind-ip>:8001/grades`
 - Canned queries (`datasette/metadata.yml`): current class grades, course grade trend,
-  recent changes, recent assignment changes, missing or zero assignments
+  recent changes, recent assignment changes, missing or zero assignments,
+  late turn-ins and regrades, and the grade timeline of one assignment
 - JSON: `http://<bind-ip>:8001/grades.json?sql=select+*+from+sections&_shape=array`
 
 ### Logs

@@ -1,6 +1,7 @@
 """
 Tests for SQLite-based grade storage.
 """
+import json
 import pytest
 import tempfile
 from datetime import datetime
@@ -299,3 +300,40 @@ class TestGradedAt:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_backfill_history_copies_older_log_changes_once(temp_db, tmp_path):
+    """Change-log entries older than grade_history are copied, and only once"""
+    log = tmp_path / "grade_changes.log"
+    entries = [
+        {"timestamp": "2026-09-01T12:00:00", "changes": [
+            {"change_type": "new_assignment", "assignment_id": "a1", "section": "Science 8: Section 52",
+             "assignment_title": "Lab", "old_grade": None, "new_grade": "Missing"}]},
+        {"timestamp": "2026-09-05T12:00:00", "changes": [
+            {"change_type": "grade_updated", "assignment_id": "a1", "section": "Science 8: Section 52",
+             "assignment_title": "Lab", "old_grade": "Missing", "new_grade": "8 / 10"},
+            {"change_type": "comment_updated", "assignment_id": "a1", "section": "Science 8: Section 52",
+             "assignment_title": "Lab", "old_grade": "8 / 10", "new_grade": "8 / 10"}]},
+        {"timestamp": "2026-10-20T12:00:00", "changes": [
+            {"change_type": "grade_updated", "assignment_id": "a1", "section": "Science 8: Section 52",
+             "assignment_title": "Lab", "old_grade": "8 / 10", "new_grade": "10 / 10"}]},
+    ]
+    log.write_text("\n".join(json.dumps(e) for e in entries) + "\nnot json\n")
+
+    # A live run already recorded history from 2026-10-20 onward
+    with temp_db._get_connection() as conn:
+        conn.execute(
+            "INSERT INTO grade_history (recorded_at, kind, item_id, section_id, label, old_value, new_value) "
+            "VALUES ('2026-10-20T12:00:00', 'assignment', 'a1', '', 'x', '8 / 10', '10 / 10')"
+        )
+
+    assert temp_db.backfill_history(log) == 2
+    assert temp_db.backfill_history(log) == 0
+
+    with temp_db._get_connection() as conn:
+        rows = conn.execute(
+            "SELECT recorded_at, old_value, new_value, label FROM grade_history "
+            "WHERE kind = 'assignment' ORDER BY recorded_at"
+        ).fetchall()
+    assert [(r[1], r[2]) for r in rows] == [(None, "Missing"), ("Missing", "8 / 10"), ("8 / 10", "10 / 10")]
+    assert rows[0][3] == "Science 8: Section 52 / Lab"

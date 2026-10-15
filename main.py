@@ -61,12 +61,18 @@ Examples:
   python main.py --daemon     # Run continuously at scheduled times
   python main.py --daemon --times "08:00,20:00"  # Custom schedule
   python main.py --report     # Print current grades from the database
+  python main.py --backfill-history  # Copy older change-log entries into grade_history
         """
     )
     parser.add_argument(
         '--report', '-r',
         action='store_true',
         help='Print the stored grade snapshot (course, period, category, assignment) and exit'
+    )
+    parser.add_argument(
+        '--backfill-history',
+        action='store_true',
+        help='Copy assignment changes from logs/grade_changes.log that predate grade_history, then exit'
     )
     parser.add_argument(
         '--daemon', '-d',
@@ -238,6 +244,12 @@ def main() -> None:
     # The report only reads the database, so it skips logging setup and its noise
     if args.report:
         print_report()
+        return
+
+    if args.backfill_history:
+        data_dir = Path(get_config().app.data_directory)
+        count = GradeStore(str(data_dir / "grades.db")).backfill_history(Path("logs") / "grade_changes.log")
+        print(f"Backfilled {count} grade_history row(s)")
         return
 
     # Read the log level before logging is configured; fall back to INFO so a
