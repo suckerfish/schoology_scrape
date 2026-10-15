@@ -11,6 +11,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from decimal import Decimal
 
 
+# Marks that stand in for a score; other marks (Collected, Late) keep the points
+SCORE_REPLACING_MARKS = {"Excused", "Incomplete", "Missing"}
+
+
 class Assignment(BaseModel):
     """
     Normalized assignment model with stable unique identifier.
@@ -20,7 +24,8 @@ class Assignment(BaseModel):
         title: Assignment title
         earned_points: Points earned (None if not graded)
         max_points: Maximum points possible (None if not graded)
-        exception: Exception status (Missing, Excused, Incomplete, None)
+        exception: Grade mark. Missing, Excused, and Incomplete replace the
+            score; any other mark (Collected, Late) sits beside it.
         comment: Teacher comment
         due_date: Due date as datetime (None if no due date)
         graded_at: When the grade was entered (None if unknown). Kept apart
@@ -30,7 +35,7 @@ class Assignment(BaseModel):
     title: str
     earned_points: Optional[Decimal] = None
     max_points: Optional[Decimal] = None
-    exception: Optional[str] = None  # "Missing", "Excused", "Incomplete"
+    exception: Optional[str] = None  # "Missing", "Excused", "Incomplete", "Collected", "Late"
     comment: str = "No comment"
     due_date: Optional[datetime] = None
     graded_at: Optional[datetime] = None
@@ -77,16 +82,18 @@ class Assignment(BaseModel):
 
     def grade_string(self) -> str:
         """Format grade as human-readable string"""
-        if self.exception:
+        if self.exception in SCORE_REPLACING_MARKS:
             return self.exception
 
         if self.earned_points is None:
-            return "Not graded"
+            return self.exception or "Not graded"
 
         if self.max_points:
-            return f"{self.earned_points} / {self.max_points}"
+            score = f"{self.earned_points} / {self.max_points}"
+        else:
+            score = str(self.earned_points)
 
-        return str(self.earned_points)
+        return f"{score} ({self.exception})" if self.exception else score
 
     def grade_changed(self, other: 'Assignment') -> bool:
         """

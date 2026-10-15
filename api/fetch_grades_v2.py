@@ -11,7 +11,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from collections import defaultdict
 from decimal import Decimal
 from api.client import SchoologyAPIClient
-from shared.models import Assignment, Category, Period, Section, GradeData
+from shared.models import Assignment, Category, Period, Section, GradeData, SCORE_REPLACING_MARKS
 
 
 logger = logging.getLogger(__name__)
@@ -45,24 +45,33 @@ class APIGradeFetcherV2:
             - 1 = excused
             - 2 = incomplete
             - 3 = missing
+            - 4 = collected (confirmed against the web GUI)
+            - 6 = late (inferred: graded after the due date, often after Missing)
+            Codes 1-3 replace the score. Other codes keep the score; an
+            unknown code is stored as "Mark <code>" rather than dropped.
         """
         grade = grade_obj.get('grade')
         max_points = grade_obj.get('max_points')
-        exception = grade_obj.get('exception', 0)
+        try:
+            exception = int(grade_obj.get('exception') or 0)
+        except (TypeError, ValueError):
+            exception = 0
 
         # Map exception codes to strings
         exception_map = {
             1: 'Excused',
             2: 'Incomplete',
-            3: 'Missing'
+            3: 'Missing',
+            4: 'Collected',
+            6: 'Late',
         }
-        exception_str = exception_map.get(exception)
+        exception_str = exception_map.get(exception, f'Mark {exception}') if exception else None
 
         # Parse numeric values
         earned = None
         max_pts = None
 
-        if exception_str is None:  # No exception
+        if exception_str not in SCORE_REPLACING_MARKS:
             if grade is not None and grade != '':
                 try:
                     earned = Decimal(str(grade))

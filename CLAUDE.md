@@ -45,6 +45,11 @@ returns them even when the web GUI hides a grade, so nothing is computed locally
 
 Each assignment has: `assignment_id`, `title`, `earned_points`, `max_points`, `exception`, `comment`, `due_date`, `graded_at` (when the grade was entered; not used for change detection)
 
+`exception` holds the Schoology grade mark. Codes 1-3 (Excused, Incomplete, Missing) replace
+the score. Code 4 (Collected, confirmed in the GUI) and 6 (Late, inferred from due dates) keep
+the score, and `grade_string()` shows them as `4 / 10 (Late)`. Unknown codes are stored as
+`Mark <code>`, never dropped.
+
 State stored in SQLite (`data/grades.db`) with tables: `snapshots`, `sections`, `periods`, `categories`, `assignments`, `grade_history`
 
 `grade_history` is append-only: one row (`kind` = course/period/category/assignment)
@@ -68,7 +73,8 @@ Prefer the JSON API over SSH + sqlite3 for ad-hoc questions and dashboards:
 - `/grades/<table>.json?_shape=array` - table rows (supports `?col=value` filters)
 - `/grades/<canned_query>.json?param=...&_shape=array` - `class_grades`, `course_trend`
   (`course`), `recent_changes` (`days`), `recent_assignment_changes` (`days`), `missing_or_zero`,
-  `grade_revisions` (late turn-ins and regrades), `assignment_timeline` (`assignment`)
+  `grade_revisions` (late turn-ins, regrades, marks added), `assignment_timeline` (`assignment`),
+  `late_or_collected`
 
 `grade_history` began on 2026-10-14. `python main.py --backfill-history` copies older assignment
 changes from `logs/grade_changes.log` (90-day retention) into it; it is idempotent.

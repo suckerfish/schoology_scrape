@@ -58,6 +58,24 @@ databases:
         params:
           - days
 
+      late_or_collected:
+        title: Late or collected work
+        description: Assignments that carry a Late or Collected mark. Collected means the teacher has the work but may not have scored it.
+        sql: |-
+          SELECT
+            s.course_title,
+            a.title,
+            a.exception AS mark,
+            a.earned_points,
+            a.max_points,
+            a.due_date,
+            a.graded_at
+          FROM assignments a
+          JOIN periods p ON p.period_id = a.period_id
+          JOIN sections s ON s.section_id = p.section_id
+          WHERE a.exception IN ('Late', 'Collected')
+          ORDER BY a.exception, a.due_date DESC
+
       missing_or_zero:
         title: Missing or zero assignments
         description: Assignments marked Missing or Incomplete, or scored 0 out of a positive max.
@@ -83,7 +101,7 @@ databases:
 
       grade_revisions:
         title: Late turn-ins and regrades
-        description: Assignments whose grade changed after it was first set. Covers Missing or Incomplete work turned in later, and redone work regraded up or down.
+        description: Assignments whose grade changed after it was first set. Covers Missing or Incomplete work turned in later, redone work regraded up or down, and Late or Collected marks added to a score.
         sql: |-
           WITH h AS (
             SELECT
@@ -109,6 +127,10 @@ databases:
               WHEN new_value IN ('Missing', 'Incomplete') THEN 'marked ' || lower(new_value)
               WHEN new_pct > old_pct THEN 'regrade up'
               WHEN new_pct < old_pct THEN 'regrade down'
+              WHEN new_value LIKE '% (%)' AND old_value NOT LIKE '% (%)'
+                THEN 'marked ' || lower(substr(new_value, instr(new_value, ' (') + 2,
+                                               length(new_value) - instr(new_value, ' (') - 2))
+              WHEN new_value IN ('Collected', 'Late') THEN 'marked ' || lower(new_value)
               ELSE 'changed'
             END AS revision,
             label,
