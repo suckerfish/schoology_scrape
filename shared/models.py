@@ -7,7 +7,7 @@ that preserve unique identifiers from the Schoology API.
 """
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from decimal import Decimal
 
 
@@ -115,6 +115,24 @@ class Assignment(BaseModel):
         return False
 
 
+def _to_decimal(v):
+    """Convert a numeric API value to Decimal, or None if it is blank or invalid"""
+    if v is None or v == '':
+        return None
+    try:
+        return Decimal(str(v))
+    except:
+        return None
+
+
+def format_grade(grade: Optional[Decimal], letter: Optional[str] = None) -> str:
+    """Format a reported percentage grade the way the Schoology GUI does"""
+    if grade is None:
+        return "—"
+    pct = f"{grade.normalize():f}%"
+    return f"{letter} ({pct})" if letter else pct
+
+
 class Category(BaseModel):
     """
     Grading category with assignments.
@@ -123,12 +141,22 @@ class Category(BaseModel):
         category_id: Unique identifier from Schoology (0 for uncategorized)
         name: Category name
         weight: Category weight as percentage (None if not weighted)
+        grade: Category grade for this period, as reported by Schoology
         assignments: List of assignments in this category
     """
+    # The fetcher sets grades after construction; validate those too
+    model_config = ConfigDict(validate_assignment=True)
+
     category_id: int
     name: str
     weight: Optional[Decimal] = None
+    grade: Optional[Decimal] = None
     assignments: list[Assignment] = Field(default_factory=list)
+
+    @field_validator('grade', mode='before')
+    @classmethod
+    def parse_grade(cls, v):
+        return _to_decimal(v)
 
     @field_validator('weight', mode='before')
     @classmethod
@@ -149,11 +177,23 @@ class Period(BaseModel):
     Attributes:
         period_id: Unique identifier (constructed from period title)
         name: Period name (e.g., "2025-2026 T1")
+        grade: Period grade as reported by Schoology (None until graded)
+        letter: Letter grade from the section's grading scale (None if no scale)
         categories: List of grading categories
     """
+    # The fetcher sets grades after construction; validate those too
+    model_config = ConfigDict(validate_assignment=True)
+
     period_id: str
     name: str
+    grade: Optional[Decimal] = None
+    letter: Optional[str] = None
     categories: list[Category] = Field(default_factory=list)
+
+    @field_validator('grade', mode='before')
+    @classmethod
+    def parse_grade(cls, v):
+        return _to_decimal(v)
 
 
 class Section(BaseModel):
@@ -164,12 +204,25 @@ class Section(BaseModel):
         section_id: Unique identifier from Schoology API
         course_title: Course title
         section_title: Section title
+        course_grade: Overall course grade as reported by Schoology. The GUI
+            sometimes hides it, but the API still returns it.
+        course_letter: Letter grade from the section's grading scale
         periods: List of grading periods
     """
+    # The fetcher sets grades after construction; validate those too
+    model_config = ConfigDict(validate_assignment=True)
+
     section_id: str
     course_title: str
     section_title: str
+    course_grade: Optional[Decimal] = None
+    course_letter: Optional[str] = None
     periods: list[Period] = Field(default_factory=list)
+
+    @field_validator('course_grade', mode='before')
+    @classmethod
+    def parse_grade(cls, v):
+        return _to_decimal(v)
 
     @property
     def full_name(self) -> str:

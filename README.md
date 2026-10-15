@@ -7,7 +7,8 @@ Automated grade monitoring system that polls Schoology via API, detects changes 
 - **Automated Grade Tracking**: Fetches grades via the Schoology REST API on a configurable schedule
 - **ID-Based Change Detection**: Compares assignments by unique ID using SQLite for fast, reliable change detection
 - **Notifications**: Emails a structured grade report, optionally with a Gemini AI summary
-- **Historical Tracking**: Stores grade state in SQLite and a JSON change log
+- **Class Grades**: Stores the course, grading-period, and category grades Schoology reports, including grades the web GUI hides
+- **Historical Tracking**: Stores grade state in SQLite, an append-only `grade_history` table, and a JSON change log
 
 Notifications are sent **only when grades actually change**. Uptime is confirmed separately through healthchecks.io.
 
@@ -19,7 +20,7 @@ Notifications are sent **only when grades actually change**. Uptime is confirmed
 - **Flexible Scheduling**: Configure exact run times (e.g., "08:00,20:00" for 8am and 8pm daily)
 
 ### Notifications
-- **Email**: Styled HTML report grouped by course, period, and category
+- **Email**: Styled HTML report with class grade changes first, then assignments grouped by course, period, and category
 - **AI Analysis**: Gemini generates a natural-language summary appended to the email
 - **JSON Logging**: Structured change history in `logs/grade_changes.log`
 
@@ -97,6 +98,10 @@ Grades are organized hierarchically:
 Course → Periods → Categories → Assignments
 ```
 
+Each course, period, and category also carries the grade Schoology reports
+(`final_grade` in the API feed). Periods and courses get a letter from the
+section's grading scale; classes on scale 0 show a percentage only.
+
 Each assignment contains:
 - **Assignment ID**: Unique identifier from Schoology
 - **Grade**: Points earned/max (e.g., "88/100")
@@ -108,6 +113,7 @@ Each assignment contains:
 
 ### SQLite Database
 - **`data/grades.db`**: Current grade state
+- **`grade_history`** table: one row per change to a course, period, category, or assignment grade, including its first value. It is never pruned.
 - Sections that stop appearing in the API feed are pruned automatically, along with their periods, categories, and assignments
 
 ### Querying (Datasette)
@@ -165,6 +171,9 @@ python main.py
 
 # Run in daemon mode
 python main.py --daemon --times "08:00,20:00"
+
+# Print the stored grade snapshot (in Docker: docker exec schoology-scheduler python main.py --report)
+python main.py --report
 
 # Run tests
 python -m pytest tests/ -v

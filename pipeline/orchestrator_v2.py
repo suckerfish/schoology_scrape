@@ -179,6 +179,9 @@ class GradePipelineV2:
                 'type': 'update',
                 'summary': report.summary(),
                 'change_objects': report.changes,
+                'class_change_objects': report.class_changes,
+                'class_grade_changes': [f"{change.section_name}: {change.summary()}"
+                                        for change in report.class_changes],
                 'detailed_changes': [
                     {
                         'type': 'grade_change',

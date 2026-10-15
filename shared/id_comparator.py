@@ -8,9 +8,9 @@ import logging
 from collections import defaultdict
 from decimal import Decimal
 from typing import Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from .models import Assignment, GradeData
+from .models import Assignment, GradeData, format_grade
 from .grade_store import GradeStore
 
 
@@ -96,6 +96,37 @@ class GradeChange:
 
 
 @dataclass
+class ClassGradeChange:
+    """
+    A change in a reported course or grading-period grade.
+
+    Attributes:
+        section_name: Full course/section name
+        scope: "course" for the overall grade, "period" for one grading period
+        period_name: Grading period name (None for the course grade)
+        old_grade/new_grade: Reported percentages (None when not yet graded)
+        old_letter/new_letter: Letters from the section's grading scale
+    """
+    section_name: str
+    scope: str  # "course", "period"
+    period_name: Optional[str]
+    old_grade: Optional[Decimal]
+    new_grade: Optional[Decimal]
+    old_letter: Optional[str] = None
+    new_letter: Optional[str] = None
+
+    @property
+    def label(self) -> str:
+        return "Course grade" if self.scope == "course" else f"{self.period_name} grade"
+
+    def summary(self) -> str:
+        new = format_grade(self.new_grade, self.new_letter)
+        if self.old_grade is None:
+            return f"{self.label}: {new}"
+        return f"{self.label}: {format_grade(self.old_grade, self.old_letter)} -> {new}"
+
+
+@dataclass
 class ChangeReport:
     """
     Complete report of all detected changes.
@@ -107,6 +138,7 @@ class ChangeReport:
         new_assignments_count: Number of new graded assignments
         grade_updates_count: Number of grade changes
         comment_updates_count: Number of comment changes
+        class_changes: Course and period grade changes
     """
     changes: list[GradeChange]
     timestamp: datetime
@@ -114,10 +146,11 @@ class ChangeReport:
     new_assignments_count: int = 0
     grade_updates_count: int = 0
     comment_updates_count: int = 0
+    class_changes: list[ClassGradeChange] = field(default_factory=list)
 
     def has_changes(self) -> bool:
         """Check if any changes were detected"""
-        return len(self.changes) > 0
+        return len(self.changes) > 0 or len(self.class_changes) > 0
 
     def summary(self) -> str:
         """Generate human-readable summary"""
@@ -134,6 +167,9 @@ class ChangeReport:
             parts.append(f"{self.grade_updates_count} grade update(s)")
         if self.comment_updates_count > 0:
             parts.append(f"{self.comment_updates_count} comment update(s)")
+        if self.class_changes:
+            classes = {change.section_name for change in self.class_changes}
+            parts.append(f"{len(classes)} class grade change(s)")
 
         return "Changes detected: " + ", ".join(parts)
 
@@ -146,6 +182,12 @@ class ChangeReport:
             return self.summary()
 
         message = f"{self.summary()}\n\n"
+
+        if self.class_changes:
+            message += "Class grades\n"
+            for change in self.class_changes:
+                message += f"  {change.section_name}: {change.summary()}\n"
+            message += "\n"
 
         # Group changes by section -> period -> category
         tree: dict[str, dict[str, dict[str, list[GradeChange]]]] = defaultdict(
@@ -215,6 +257,7 @@ class IDComparator:
         # Compare against database
         self.logger.info("Comparing new data against database...")
         changes = self._compare_grade_data(new_data)
+        class_changes = self._compare_class_grades(new_data)
 
         # Save new data to database
         if save_to_db:
@@ -231,7 +274,8 @@ class IDComparator:
             is_initial=False,
             new_assignments_count=new_count,
             grade_updates_count=grade_count,
-            comment_updates_count=comment_count
+            comment_updates_count=comment_count,
+            class_changes=class_changes
         )
 
         self.logger.info(f"Comparison complete: {report.summary()}")
@@ -301,5 +345,52 @@ class IDComparator:
                     old_earned=old_assignment.earned_points,
                     old_max=old_assignment.max_points,
                 ))
+
+        return changes
+
+    def _compare_class_grades(self, new_data: GradeData) -> list[ClassGradeChange]:
+        """
+        Compare reported course and period grades against database state.
+
+        A period change is dropped when the course grade made the same move,
+        which is the normal case while only one period has grades.
+        """
+        changes = []
+
+        for section in new_data.sections:
+            old_section = self.store.get_section(section.section_id)
+            old_periods = {p.period_id: p for p in old_section.periods} if old_section else {}
+            section_changes = []
+
+            old_course = old_section.course_grade if old_section else None
+            if section.course_grade is not None and section.course_grade != old_course:
+                section_changes.append(ClassGradeChange(
+                    section_name=section.full_name,
+                    scope="course",
+                    period_name=None,
+                    old_grade=old_course,
+                    new_grade=section.course_grade,
+                    old_letter=old_section.course_letter if old_section else None,
+                    new_letter=section.course_letter,
+                ))
+
+            for period in section.periods:
+                old_period = old_periods.get(period.period_id)
+                old_grade = old_period.grade if old_period else None
+                if period.grade is None or period.grade == old_grade:
+                    continue
+                if any(c.old_grade == old_grade and c.new_grade == period.grade for c in section_changes):
+                    continue
+                section_changes.append(ClassGradeChange(
+                    section_name=section.full_name,
+                    scope="period",
+                    period_name=period.name,
+                    old_grade=old_grade,
+                    new_grade=period.grade,
+                    old_letter=old_period.letter if old_period else None,
+                    new_letter=period.letter,
+                ))
+
+            changes.extend(section_changes)
 
         return changes

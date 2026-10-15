@@ -173,12 +173,14 @@ class EmailProvider(NotificationProvider):
         """Build styled HTML email from notification message"""
         # Try to get GradeChange objects from metadata
         change_objects = None
+        class_changes = None
         if message.metadata and 'grade_changes' in message.metadata:
             grade_changes = message.metadata['grade_changes']
             if isinstance(grade_changes, dict):
                 change_objects = grade_changes.get('change_objects')
+                class_changes = grade_changes.get('class_change_objects')
 
-        if not change_objects:
+        if not change_objects and not class_changes:
             return self._plain_to_html(message.content)
 
         esc = self._esc
@@ -197,11 +199,24 @@ class EmailProvider(NotificationProvider):
                 f'<p style="margin:0 0 16px;color:#555;">{esc(summary_line)}</p>'
             )
 
+        # Class grades first: they are the headline
+        if class_changes:
+            parts.append(
+                '<div style="font-weight:700;font-size:15px;margin:14px 0 4px;'
+                'padding-bottom:4px;border-bottom:1px solid #e0e0e0;">Class grades</div>'
+            )
+            for change in class_changes:
+                parts.append(
+                    f'<div style="margin:2px 0 2px 12px;">'
+                    f'{esc(change.section_name)}: {esc(change.summary())}'
+                    f'</div>'
+                )
+
         # Group changes: section -> period -> category
         tree: dict[str, dict[str, dict[str, list]]] = defaultdict(
             lambda: defaultdict(lambda: defaultdict(list))
         )
-        for change in change_objects:
+        for change in change_objects or []:
             tree[change.section_name][change.period_name][change.category_name].append(change)
 
         for section_name, periods in tree.items():
