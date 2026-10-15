@@ -46,7 +46,7 @@ returns them even when the web GUI hides a grade, so nothing is computed locally
 Each assignment has: `assignment_id`, `title`, `earned_points`, `max_points`, `exception`, `comment`, `due_date`, `graded_at` (when the grade was entered; not used for change detection)
 
 `exception` holds the Schoology grade mark. Codes 1-3 (Excused, Incomplete, Missing) replace
-the score. Code 4 (Collected, confirmed in the GUI) and 6 (Late, inferred from due dates) keep
+the score. Codes 4 (Collected) and 6 (Late), both confirmed in the GUI, keep
 the score, and `grade_string()` shows them as `4 / 10 (Late)`. Unknown codes are stored as
 `Mark <code>`, never dropped.
 

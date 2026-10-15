@@ -46,7 +46,7 @@ class APIGradeFetcherV2:
             - 2 = incomplete
             - 3 = missing
             - 4 = collected (confirmed against the web GUI)
-            - 6 = late (inferred: graded after the due date, often after Missing)
+            - 6 = late (confirmed against the web GUI)
             Codes 1-3 replace the score. Other codes keep the score; an
             unknown code is stored as "Mark <code>" rather than dropped.
         """
