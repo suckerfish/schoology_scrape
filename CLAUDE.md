@@ -76,8 +76,9 @@ Prefer the JSON API over SSH + sqlite3 for ad-hoc questions and dashboards:
   `grade_revisions` (late turn-ins, regrades, marks added), `assignment_timeline` (`assignment`),
   `late_or_collected`
 
-`grade_history` began on 2026-10-14. `python main.py --backfill-history` copies older assignment
-changes from `logs/grade_changes.log` (90-day retention) into it; it is idempotent.
+Course, period, and category history starts on 2026-10-14. Assignment history goes back to
+2026-08-14, because `python main.py --backfill-history` copied older changes from
+`logs/grade_changes.log` (90-day retention). The backfill is idempotent.
 
 ## Essential Commands
 
@@ -93,6 +94,7 @@ docker compose down         # Stop
 uv pip install -r requirements.txt  # Install deps
 python main.py                      # Single run
 python main.py --report             # Print stored grade snapshot (no API calls)
+python main.py --backfill-history   # Copy older change-log entries into grade_history (idempotent)
 python -m pytest tests/ -v          # Run tests
 ```
 
@@ -117,6 +119,9 @@ python -m pytest tests/ -v          # Run tests
 
 ## Recent Changes
 
+- Grade marks 4 (Collected) and 6 (Late) are stored instead of dropped; they keep the score
+- `--backfill-history` copies pre-`grade_history` assignment changes from the change log
+- Read-only Datasette service (`datasette/`) with canned queries, bound to `DATASETTE_BIND`
 - Course, period, and category grades parsed from `final_grade`, stored, and tracked in `grade_history`; class grade changes are notified and `--report` prints the snapshot
 - Section IDs are resolved by direct `/sections/{id}` lookup and joined to enrollments on `course_id`; detail endpoints try both IDs
 - Assignments are fetched per section in one bulk call, with a per-assignment fallback

@@ -9,6 +9,8 @@ Automated grade monitoring system that polls Schoology via API, detects changes 
 - **Notifications**: Emails a structured grade report, optionally with a Gemini AI summary
 - **Class Grades**: Stores the course, grading-period, and category grades Schoology reports, including grades the web GUI hides
 - **Historical Tracking**: Stores grade state in SQLite, an append-only `grade_history` table, and a JSON change log
+- **Revision Tracking**: Records Missing work turned in late, regrades of redone work, and Late or Collected marks
+- **Query API**: Optional read-only Datasette service with a SQL browser, JSON API, and canned queries
 
 Notifications are sent **only when grades actually change**. Uptime is confirmed separately through healthchecks.io.
 
@@ -62,6 +64,9 @@ Notifications are sent **only when grades actually change**. Uptime is confirmed
 
    # Uptime monitoring (optional, recommended)
    HEALTHCHECKS_URL=https://hc-ping.com/your-uuid-here
+
+   # Datasette query UI bind IP (optional; defaults to 127.0.0.1, keep it private)
+   DATASETTE_BIND=100.x.y.z
    ```
 
 3. **Deploy with Docker**:
@@ -71,7 +76,7 @@ Notifications are sent **only when grades actually change**. Uptime is confirmed
    docker compose down       # Stop
    ```
 
-`compose.yaml` pulls `ghcr.io/suckerfish/schoology_scrape:latest`, built by GitHub Actions on every push to `main`.
+`compose.yaml` pulls `ghcr.io/suckerfish/schoology_scrape:latest`, built by GitHub Actions on every push to `main`. It also builds and runs the `datasette` query service from `datasette/` (see [Querying](#querying-datasette)).
 
 ## Configuration
 
@@ -105,7 +110,7 @@ section's grading scale; classes on scale 0 show a percentage only.
 Each assignment contains:
 - **Assignment ID**: Unique identifier from Schoology
 - **Grade**: Points earned/max (e.g., "88/100")
-- **Exception**: Missing, Excused, or Incomplete status
+- **Mark** (`exception`): Missing, Excused, or Incomplete replace the score; Collected and Late keep it (shown as `4 / 10 (Late)`); unknown codes are stored as `Mark <code>`
 - **Comment**: Teacher feedback
 - **Due Date**: Assignment deadline
 
@@ -175,6 +180,9 @@ python main.py --daemon --times "08:00,20:00"
 
 # Print the stored grade snapshot (in Docker: docker exec schoology-scheduler python main.py --report)
 python main.py --report
+
+# Copy change-log entries older than grade_history into it (idempotent)
+python main.py --backfill-history
 
 # Run tests
 python -m pytest tests/ -v
