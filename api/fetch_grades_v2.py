@@ -27,6 +27,7 @@ class APIGradeFetcherV2:
         self.assignments_cache = {}
         self.enrollment_id_map = {}  # Maps grade_section_id -> enrollment_section_id
         self.bulk_loaded = set()  # grade_section_ids whose assignment list was fetched
+        self.scales_cache = {}  # scale_id -> list of (cutoff, letter), highest cutoff first
 
     def _parse_grade(self, grade_obj: Dict[str, Any]) -> Tuple[Optional[Decimal], Optional[Decimal], Optional[str]]:
         """
@@ -227,6 +228,81 @@ class APIGradeFetcherV2:
 
         return name, weight_decimal
 
+    def _get_letter(self, grade_section_id: str, scale_id: Any, grade: Optional[Decimal]) -> Optional[str]:
+        """
+        Map a percentage to a letter with the section's grading scale.
+
+        Scale 0 means the class shows percentages only, so it has no letter.
+        """
+        if grade is None or not scale_id:
+            return None
+
+        if scale_id not in self.scales_cache:
+            for section_id in self._detail_ids(grade_section_id):
+                try:
+                    for scale in self.client.get_grading_scales(section_id):
+                        levels = scale.get('scale', {}).get('level', [])
+                        self.scales_cache[scale['id']] = sorted(
+                            ((Decimal(str(level['cutoff'])), level['grade']) for level in levels),
+                            reverse=True
+                        )
+                    break
+                except Exception as e:
+                    logger.debug(f"Could not fetch grading scales with section ID {section_id}: {e}")
+
+        for cutoff, letter in self.scales_cache.get(scale_id, []):
+            if grade >= cutoff:
+                return letter
+
+        if scale_id not in self.scales_cache:
+            logger.warning(f"Grading scale {scale_id} not found for section {grade_section_id}")
+        return None
+
+    def _apply_final_grades(self, section: Section, section_grades: Dict[str, Any],
+                            periods_by_api_id: Dict[str, Period]) -> None:
+        """
+        Copy the reported course, period, and category grades onto the models.
+
+        The grades feed carries a final_grade entry per grading period, plus one
+        with period_id 'final' for the whole course. Future periods are present
+        with null grades and are skipped.
+        """
+        grade_section_id = section.section_id
+
+        for final in section_grades.get('final_grade') or []:
+            api_period_id = final.get('period_id')
+            grade = final.get('grade')
+            scale_id = final.get('scale_id')
+
+            if api_period_id == 'final':
+                section.course_grade = grade
+                section.course_letter = self._get_letter(grade_section_id, scale_id, section.course_grade)
+                continue
+
+            period = periods_by_api_id.get(api_period_id)
+            if period is None:
+                if grade is None:
+                    continue
+                # A graded period with no graded assignments in the feed
+                period = Period(period_id=f"{grade_section_id}:{api_period_id}", name=api_period_id)
+                periods_by_api_id[api_period_id] = period
+                section.periods.append(period)
+
+            period.grade = grade
+            period.letter = self._get_letter(grade_section_id, scale_id, period.grade)
+
+            categories = {category.category_id: category for category in period.categories}
+            for category_grade in final.get('grading_category') or []:
+                category_id = category_grade.get('category_id')
+                if category_grade.get('grade') is None:
+                    continue
+                category = categories.get(category_id)
+                if category is None:
+                    name, weight = self._get_category_info(grade_section_id, category_id)
+                    category = Category(category_id=category_id, name=name, weight=weight)
+                    period.categories.append(category)
+                category.grade = category_grade['grade']
+
     def fetch_all_grades(self) -> GradeData:
         """
         Fetch all grade data from API.
@@ -331,6 +407,7 @@ class APIGradeFetcherV2:
             )
 
             # Process each grading period
+            periods_by_api_id = {}
             for period_data in section_grades.get('period', []):
                 period_title = period_data.get('period_title', 'Unknown Period')
 
@@ -339,6 +416,7 @@ class APIGradeFetcherV2:
                     period_id=f"{grade_section_id}:{period_title}",  # Composite key
                     name=period_title
                 )
+                periods_by_api_id[period_data.get('period_id')] = period
 
                 # Group assignments by category
                 category_assignments = defaultdict(list)
@@ -384,6 +462,8 @@ class APIGradeFetcherV2:
                     period.categories.append(category)
 
                 section.periods.append(period)
+
+            self._apply_final_grades(section, section_grades, periods_by_api_id)
 
             sections.append(section)
 

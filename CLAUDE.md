@@ -37,9 +37,18 @@ Automated grade monitoring system: polls Schoology API → detects changes via I
 GradeData → Section → Period → Category → Assignment
 ```
 
+Sections carry `course_grade`/`course_letter`, periods carry `grade`/`letter`, and
+categories carry `grade`. These are the values Schoology reports in the grades
+feed's `final_grade` array (`period_id: 'final'` is the course grade). The API
+returns them even when the web GUI hides a grade, so nothing is computed locally.
+
 Each assignment has: `assignment_id`, `title`, `earned_points`, `max_points`, `exception`, `comment`, `due_date`, `graded_at` (when the grade was entered; not used for change detection)
 
-State stored in SQLite (`data/grades.db`) with tables: `snapshots`, `sections`, `periods`, `categories`, `assignments`
+State stored in SQLite (`data/grades.db`) with tables: `snapshots`, `sections`, `periods`, `categories`, `assignments`, `grade_history`
+
+`grade_history` is append-only: one row (`kind` = course/period/category/assignment)
+each time a stored grade changes, including its first value. It has no foreign
+keys, so it survives section pruning.
 
 Writes are upserts, not `INSERT OR REPLACE`: foreign keys are enforced with
 `ON DELETE CASCADE`, so a REPLACE would cascade-delete a row's children. Sections
@@ -59,6 +68,7 @@ docker compose down         # Stop
 ```bash
 uv pip install -r requirements.txt  # Install deps
 python main.py                      # Single run
+python main.py --report             # Print stored grade snapshot (no API calls)
 python -m pytest tests/ -v          # Run tests
 ```
 
@@ -75,7 +85,7 @@ python -m pytest tests/ -v          # Run tests
 ## Notification Flow
 
 1. **Orchestrator** runs pipeline → fetches grades via API
-2. **IDComparator** compares against SQLite state → generates ChangeReport
+2. **IDComparator** compares against SQLite state → generates ChangeReport (assignment changes plus course/period `class_changes`)
 3. **ChangeLogger** writes JSON to `logs/grade_changes.log`
 4. **Notification Manager** loads available providers
 5. **Gemini Provider** generates AI analysis → adds to metadata
@@ -83,6 +93,7 @@ python -m pytest tests/ -v          # Run tests
 
 ## Recent Changes
 
+- Course, period, and category grades parsed from `final_grade`, stored, and tracked in `grade_history`; class grade changes are notified and `--report` prints the snapshot
 - Section IDs are resolved by direct `/sections/{id}` lookup and joined to enrollments on `course_id`; detail endpoints try both IDs
 - Assignments are fetched per section in one bulk call, with a per-assignment fallback
 - Removed dead code: `pipeline/error_handling.py`, unused notification/config/store methods, orphaned config keys

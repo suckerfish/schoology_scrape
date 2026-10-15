@@ -50,8 +50,21 @@ class ChangeLogger:
                 "new_assignments": report.new_assignments_count,
                 "grade_updates": report.grade_updates_count,
                 "comment_updates": report.comment_updates_count,
+                "class_grade_changes": len(report.class_changes),
                 "total": len(report.changes)
             },
+            "class_changes": [
+                {
+                    "section": c.section_name,
+                    "scope": c.scope,
+                    "period": c.period_name,
+                    "old_grade": str(c.old_grade) if c.old_grade is not None else None,
+                    "new_grade": str(c.new_grade) if c.new_grade is not None else None,
+                    "old_letter": c.old_letter,
+                    "new_letter": c.new_letter
+                }
+                for c in report.class_changes
+            ],
             "changes": [
                 {
                     "assignment_id": c.assignment_id,

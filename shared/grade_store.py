@@ -24,6 +24,11 @@ class GradeStore:
         - periods: Grading periods within sections
         - categories: Grading categories within periods
         - assignments: Individual assignments with grades
+        - grade_history: Append-only log of every course, period, category,
+          and assignment grade change. Kept when a section is pruned.
+
+    Course, period, and category grades are the values Schoology reports,
+    stored on their own rows.
     """
 
     def __init__(self, db_path: str = "data/grades.db"):
@@ -75,6 +80,8 @@ class GradeStore:
                     section_id TEXT PRIMARY KEY,
                     course_title TEXT NOT NULL,
                     section_title TEXT,
+                    course_grade TEXT,
+                    course_letter TEXT,
                     last_updated TEXT NOT NULL
                 )
             """)
@@ -85,6 +92,8 @@ class GradeStore:
                     period_id TEXT PRIMARY KEY,
                     section_id TEXT NOT NULL,
                     name TEXT NOT NULL,
+                    grade TEXT,
+                    letter TEXT,
                     last_updated TEXT NOT NULL,
                     FOREIGN KEY (section_id) REFERENCES sections(section_id) ON DELETE CASCADE
                 )
@@ -97,6 +106,7 @@ class GradeStore:
                     period_id TEXT NOT NULL,
                     name TEXT NOT NULL,
                     weight TEXT,
+                    grade TEXT,
                     last_updated TEXT NOT NULL,
                     PRIMARY KEY (category_id, period_id),
                     FOREIGN KEY (period_id) REFERENCES periods(period_id) ON DELETE CASCADE
@@ -121,10 +131,31 @@ class GradeStore:
                 )
             """)
 
-            # Databases created before graded_at existed lack the column
-            columns = {row['name'] for row in cursor.execute("PRAGMA table_info(assignments)")}
-            if 'graded_at' not in columns:
-                cursor.execute("ALTER TABLE assignments ADD COLUMN graded_at TEXT")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS grade_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    recorded_at TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    item_id TEXT NOT NULL,
+                    section_id TEXT NOT NULL,
+                    label TEXT NOT NULL,
+                    old_value TEXT,
+                    new_value TEXT
+                )
+            """)
+
+            # Databases created by older versions lack these columns
+            added_columns = {
+                'sections': ['course_grade', 'course_letter'],
+                'periods': ['grade', 'letter'],
+                'categories': ['grade'],
+                'assignments': ['graded_at'],
+            }
+            for table, names in added_columns.items():
+                columns = {row['name'] for row in cursor.execute(f"PRAGMA table_info({table})")}
+                for name in names:
+                    if name not in columns:
+                        cursor.execute(f"ALTER TABLE {table} ADD COLUMN {name} TEXT")
 
             # Indexes for faster lookups
             cursor.execute("""
@@ -138,6 +169,10 @@ class GradeStore:
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_assignments_category
                 ON assignments(category_id, period_id)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_history_item
+                ON grade_history(kind, item_id)
             """)
 
             self.logger.info(f"Database initialized at {self.db_path}")
@@ -212,60 +247,122 @@ class GradeStore:
         if cursor.rowcount > 0:
             self.logger.info(f"Pruned {cursor.rowcount} old snapshot row(s)")
 
+    @staticmethod
+    def _grade_str(grade: Optional[Decimal]) -> Optional[str]:
+        return str(grade) if grade is not None else None
+
+    def _record_history(self, cursor: sqlite3.Cursor, timestamp: datetime, kind: str, item_id: str,
+                        section_id: str, label: str, old_value: Optional[str], new_value: Optional[str]):
+        """Append a grade_history row if the value changed (including first appearance)"""
+        if old_value == new_value:
+            return
+        cursor.execute(
+            """
+            INSERT INTO grade_history
+            (recorded_at, kind, item_id, section_id, label, old_value, new_value)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (timestamp.isoformat(), kind, item_id, section_id, label, old_value, new_value)
+        )
+
+    def _old_value(self, cursor: sqlite3.Cursor, query: str, params: tuple) -> Optional[str]:
+        row = cursor.execute(query, params).fetchone()
+        return row[0] if row else None
+
     def _save_section(self, cursor: sqlite3.Cursor, section: Section, timestamp: datetime):
         """Save section and its nested data"""
+        grade_str = self._grade_str(section.course_grade)
+        old_grade = self._old_value(
+            cursor, "SELECT course_grade FROM sections WHERE section_id = ?", (section.section_id,)
+        )
+        self._record_history(cursor, timestamp, 'course', section.section_id, section.section_id,
+                             section.full_name, old_grade, grade_str)
+
         cursor.execute(
             """
             INSERT INTO sections
-            (section_id, course_title, section_title, last_updated)
-            VALUES (?, ?, ?, ?)
+            (section_id, course_title, section_title, course_grade, course_letter, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(section_id) DO UPDATE SET
                 course_title = excluded.course_title,
                 section_title = excluded.section_title,
+                course_grade = excluded.course_grade,
+                course_letter = excluded.course_letter,
                 last_updated = excluded.last_updated
             """,
-            (section.section_id, section.course_title, section.section_title, timestamp.isoformat())
+            (section.section_id, section.course_title, section.section_title,
+             grade_str, section.course_letter, timestamp.isoformat())
         )
 
         for period in section.periods:
-            self._save_period(cursor, period, section.section_id, timestamp)
+            self._save_period(cursor, period, section, timestamp)
 
-    def _save_period(self, cursor: sqlite3.Cursor, period: Period, section_id: str, timestamp: datetime):
+    def _save_period(self, cursor: sqlite3.Cursor, period: Period, section: Section, timestamp: datetime):
         """Save period and its nested data"""
+        grade_str = self._grade_str(period.grade)
+        old_grade = self._old_value(
+            cursor, "SELECT grade FROM periods WHERE period_id = ?", (period.period_id,)
+        )
+        self._record_history(cursor, timestamp, 'period', period.period_id, section.section_id,
+                             f"{section.full_name} / {period.name}", old_grade, grade_str)
+
         cursor.execute(
             """
             INSERT INTO periods
-            (period_id, section_id, name, last_updated)
-            VALUES (?, ?, ?, ?)
+            (period_id, section_id, name, grade, letter, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(period_id) DO UPDATE SET
                 section_id = excluded.section_id,
                 name = excluded.name,
+                grade = excluded.grade,
+                letter = excluded.letter,
                 last_updated = excluded.last_updated
             """,
-            (period.period_id, section_id, period.name, timestamp.isoformat())
+            (period.period_id, section.section_id, period.name, grade_str, period.letter,
+             timestamp.isoformat())
         )
 
         for category in period.categories:
-            self._save_category(cursor, category, period.period_id, timestamp)
+            self._save_category(cursor, category, period, section, timestamp)
 
-    def _save_category(self, cursor: sqlite3.Cursor, category: Category, period_id: str, timestamp: datetime):
+    def _save_category(self, cursor: sqlite3.Cursor, category: Category, period: Period,
+                       section: Section, timestamp: datetime):
         """Save category and its nested data"""
+        period_id = period.period_id
         weight_str = str(category.weight) if category.weight else None
+        grade_str = self._grade_str(category.grade)
+        old_grade = self._old_value(
+            cursor, "SELECT grade FROM categories WHERE category_id = ? AND period_id = ?",
+            (category.category_id, period_id)
+        )
+        self._record_history(cursor, timestamp, 'category', f"{period_id}:{category.category_id}",
+                             section.section_id, f"{section.full_name} / {period.name} / {category.name}",
+                             old_grade, grade_str)
 
         cursor.execute(
             """
             INSERT INTO categories
-            (category_id, period_id, name, weight, last_updated)
-            VALUES (?, ?, ?, ?, ?)
+            (category_id, period_id, name, weight, grade, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(category_id, period_id) DO UPDATE SET
                 name = excluded.name,
                 weight = excluded.weight,
+                grade = excluded.grade,
                 last_updated = excluded.last_updated
             """,
-            (category.category_id, period_id, category.name, weight_str, timestamp.isoformat())
+            (category.category_id, period_id, category.name, weight_str, grade_str,
+             timestamp.isoformat())
         )
 
         for assignment in category.assignments:
+            old_row = cursor.execute(
+                "SELECT * FROM assignments WHERE assignment_id = ?", (assignment.assignment_id,)
+            ).fetchone()
+            old_grade = self._row_to_assignment(old_row).grade_string() if old_row else None
+            self._record_history(cursor, timestamp, 'assignment', assignment.assignment_id,
+                                 section.section_id, f"{section.full_name} / {assignment.title}",
+                                 old_grade, assignment.grade_string())
+
             self._save_assignment(cursor, assignment, category.category_id, period_id, timestamp)
 
     def _save_assignment(self, cursor: sqlite3.Cursor, assignment: Assignment, category_id: int,
@@ -352,22 +449,32 @@ class GradeStore:
             section = Section(
                 section_id=section_row['section_id'],
                 course_title=section_row['course_title'],
-                section_title=section_row['section_title'] or ""
+                section_title=section_row['section_title'] or "",
+                course_grade=section_row['course_grade'],
+                course_letter=section_row['course_letter']
             )
 
             # Get periods
-            cursor.execute("SELECT * FROM periods WHERE section_id = ?", (section_id,))
+            cursor.execute("SELECT * FROM periods WHERE section_id = ? ORDER BY name", (section_id,))
             for period_row in cursor.fetchall():
                 period = self._load_period(cursor, period_row)
                 section.periods.append(period)
 
             return section
 
+    def get_all_sections(self) -> list[Section]:
+        """Get every stored section with nested data, ordered by course title"""
+        with self._get_connection() as conn:
+            rows = conn.execute("SELECT section_id FROM sections ORDER BY course_title").fetchall()
+        return [self.get_section(row['section_id']) for row in rows]
+
     def _load_period(self, cursor: sqlite3.Cursor, period_row: sqlite3.Row) -> Period:
         """Load period with nested categories and assignments"""
         period = Period(
             period_id=period_row['period_id'],
-            name=period_row['name']
+            name=period_row['name'],
+            grade=period_row['grade'],
+            letter=period_row['letter']
         )
 
         # Get categories for this period
@@ -389,7 +496,8 @@ class GradeStore:
         category = Category(
             category_id=category_row['category_id'],
             name=category_row['name'],
-            weight=weight
+            weight=weight,
+            grade=category_row['grade']
         )
 
         # Get assignments for this category
@@ -442,4 +550,5 @@ class GradeStore:
             cursor.execute("DELETE FROM periods")
             cursor.execute("DELETE FROM sections")
             cursor.execute("DELETE FROM snapshots")
+            cursor.execute("DELETE FROM grade_history")
             self.logger.info("Cleared all data from database")

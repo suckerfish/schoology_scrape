@@ -2,9 +2,10 @@
 """
 Schoology Grade Scraper - Main Entry Point
 
-Supports two modes:
+Supports three modes:
   - Single run (default): Run once and exit
   - Daemon mode (--daemon): Run continuously at scheduled times
+  - Report (--report): Print the stored grade snapshot and exit
 """
 import argparse
 import logging
@@ -16,6 +17,8 @@ from pathlib import Path
 
 from pipeline.orchestrator_v2 import GradePipelineV2
 from shared.config import get_config
+from shared.grade_store import GradeStore
+from shared.models import format_grade
 
 
 def setup_logging(daemon_mode: bool = False, level: str = "INFO") -> None:
@@ -57,7 +60,13 @@ Examples:
   python main.py              # Run once and exit
   python main.py --daemon     # Run continuously at scheduled times
   python main.py --daemon --times "08:00,20:00"  # Custom schedule
+  python main.py --report     # Print current grades from the database
         """
+    )
+    parser.add_argument(
+        '--report', '-r',
+        action='store_true',
+        help='Print the stored grade snapshot (course, period, category, assignment) and exit'
     )
     parser.add_argument(
         '--daemon', '-d',
@@ -129,6 +138,39 @@ def get_next_run_time(scrape_times: list[tuple[int, int]]) -> tuple[datetime, in
     return next_run, sleep_seconds
 
 
+def format_report(store: GradeStore) -> str:
+    """Render every stored section as an indented text table"""
+    lines = []
+    last_run = store.get_latest_snapshot_time()
+    lines.append(f"Grades as of {last_run:%Y-%m-%d %H:%M}" if last_run else "No grade data stored yet")
+
+    for section in store.get_all_sections():
+        lines.append("")
+        lines.append(f"{section.full_name}  —  Course: {format_grade(section.course_grade, section.course_letter)}")
+        for period in section.periods:
+            if period.grade is None and not period.categories:
+                continue
+            lines.append(f"  {period.name}: {format_grade(period.grade, period.letter)}")
+            for category in sorted(period.categories, key=lambda c: c.name):
+                weight = f" (weight {category.weight.normalize():f}%)" if category.weight else ""
+                lines.append(f"    {category.name}{weight}: {format_grade(category.grade)}")
+                assignments = sorted(
+                    category.assignments,
+                    key=lambda a: (a.due_date or a.graded_at or datetime.min, a.title)
+                )
+                for assignment in assignments:
+                    due = f"  due {assignment.due_date:%m/%d}" if assignment.due_date else ""
+                    lines.append(f"      {assignment.grade_string():>12}  {assignment.title}{due}")
+
+    return "\n".join(lines)
+
+
+def print_report() -> None:
+    """Print the stored snapshot without fetching from the API"""
+    data_dir = Path(get_config().app.data_directory)
+    print(format_report(GradeStore(str(data_dir / "grades.db"))))
+
+
 def run_pipeline() -> bool:
     """
     Execute the grade scraping pipeline.
@@ -192,6 +234,11 @@ def run_daemon(scrape_times: list[tuple[int, int]]) -> None:
 def main() -> None:
     """Main entry point for the grade scraper"""
     args = parse_args()
+
+    # The report only reads the database, so it skips logging setup and its noise
+    if args.report:
+        print_report()
+        return
 
     # Read the log level before logging is configured; fall back to INFO so a
     # bad config still produces readable output for the error below.
