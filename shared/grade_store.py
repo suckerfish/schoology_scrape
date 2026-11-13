@@ -205,9 +205,51 @@ class GradeStore:
             self.logger.info(f"Saved snapshot {snapshot_id} with {len(grade_data.sections)} sections")
 
             self._prune_stale_sections(cursor, grade_data)
+            self._prune_stale_assignments(cursor, grade_data)
             self._prune_snapshots(cursor)
 
             return snapshot_id
+
+    def _prune_stale_assignments(self, cursor: sqlite3.Cursor, grade_data: GradeData):
+        """
+        Delete assignments the API no longer reports in a section it still reports.
+
+        Teachers delete duplicates and replace placeholders; without this the
+        old rows stay forever as "ungraded". Each removal is recorded in
+        grade_history as new_value 'Removed'. A section that reports no
+        assignments is skipped, because that looks like a fetch problem.
+        """
+        removed = []
+        for section in grade_data.sections:
+            current_ids = [
+                assignment.assignment_id
+                for period in section.periods
+                for category in period.categories
+                for assignment in category.assignments
+            ]
+            if not current_ids:
+                continue
+            placeholders = ",".join("?" * len(current_ids))
+            cursor.execute(
+                f"""
+                SELECT a.assignment_id, a.title, a.earned_points, a.max_points, a.exception,
+                       a.comment, a.due_date, a.graded_at
+                FROM assignments a JOIN periods p ON p.period_id = a.period_id
+                WHERE p.section_id = ? AND a.assignment_id NOT IN ({placeholders})
+                """,
+                [section.section_id, *current_ids]
+            )
+            for row in cursor.fetchall():
+                old = self._row_to_assignment(row).grade_string()
+                self._record_history(
+                    cursor, grade_data.timestamp, "assignment", row["assignment_id"],
+                    section.section_id, f"{section.full_name} / {row['title']}", old, "Removed"
+                )
+                cursor.execute("DELETE FROM assignments WHERE assignment_id = ?", (row["assignment_id"],))
+                removed.append(f"{section.course_title} / {row['title']} ({row['assignment_id']})")
+
+        if removed:
+            self.logger.info(f"Pruned {len(removed)} assignment(s) no longer reported: {', '.join(removed)}")
 
     def _prune_stale_sections(self, cursor: sqlite3.Cursor, grade_data: GradeData):
         """

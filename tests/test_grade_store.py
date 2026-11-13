@@ -337,3 +337,35 @@ def test_backfill_history_copies_older_log_changes_once(temp_db, tmp_path):
         ).fetchall()
     assert [(r[1], r[2]) for r in rows] == [(None, "Missing"), ("Missing", "8 / 10"), ("8 / 10", "10 / 10")]
     assert rows[0][3] == "Science 8: Section 52 / Lab"
+
+
+def _feed(assignments, section_id="sec1", ts=None):
+    category = Category(category_id=1, name="Homework", assignments=assignments)
+    period = Period(period_id=f"{section_id}:T1", name="T1", categories=[category])
+    section = Section(section_id=section_id, course_title="Math 7", section_title="Period 1", periods=[period])
+    return GradeData(timestamp=ts or datetime.now(), sections=[section])
+
+
+def test_prunes_assignment_dropped_from_section_and_records_history(temp_db):
+    kept = Assignment(assignment_id="1", title="Kept", earned_points=Decimal("9"), max_points=Decimal("10"))
+    gone = Assignment(assignment_id="2", title="Duplicate", max_points=Decimal("10"))
+    temp_db.save_grade_data(_feed([kept, gone]))
+
+    temp_db.save_grade_data(_feed([kept]))
+
+    assert temp_db.get_assignment("1") is not None
+    assert temp_db.get_assignment("2") is None
+    with temp_db._get_connection() as conn:
+        rows = conn.execute(
+            "SELECT label, old_value, new_value FROM grade_history WHERE item_id='2' ORDER BY id"
+        ).fetchall()
+    assert [tuple(r) for r in rows][-1] == ("Math 7: Period 1 / Duplicate", "Not graded", "Removed")
+
+
+def test_section_with_no_assignments_in_feed_is_not_pruned(temp_db):
+    a = Assignment(assignment_id="1", title="Quiz", earned_points=Decimal("9"), max_points=Decimal("10"))
+    temp_db.save_grade_data(_feed([a]))
+
+    temp_db.save_grade_data(_feed([]))
+
+    assert temp_db.get_assignment("1") is not None

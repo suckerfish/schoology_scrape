@@ -101,7 +101,7 @@ databases:
 
       grade_revisions:
         title: Late turn-ins and regrades
-        description: Assignments whose grade changed after it was first set. Covers Missing or Incomplete work turned in later, redone work regraded up or down, and Late or Collected marks added to a score.
+        description: Assignments whose grade changed after it was first set. Covers Missing or Incomplete work turned in later, redone work regraded up or down, and Late or Collected marks added to a score, and graded assignments the teacher deleted.
         sql: |-
           WITH h AS (
             SELECT
@@ -122,6 +122,7 @@ databases:
           SELECT
             recorded_at,
             CASE
+              WHEN new_value = 'Removed' THEN 'removed'
               WHEN old_value IN ('Missing', 'Incomplete')
                    AND new_value NOT IN ('Missing', 'Incomplete') THEN 'turned in late'
               WHEN new_value IN ('Missing', 'Incomplete') THEN 'marked ' || lower(new_value)

@@ -58,8 +58,10 @@ keys, so it survives section pruning.
 
 Writes are upserts, not `INSERT OR REPLACE`: foreign keys are enforced with
 `ON DELETE CASCADE`, so a REPLACE would cascade-delete a row's children. Sections
-missing from the API feed are pruned on save (skipped if the feed is empty), and
-the `snapshots` table is capped at 100 rows.
+missing from the API feed are pruned on save (skipped if the feed is empty). So are
+assignments missing from a section the feed still reports (skipped if that section
+reports none); each removal adds a `grade_history` row with `new_value` = `Removed`.
+The `snapshots` table is capped at 100 rows.
 
 ## Querying the Database (Datasette)
 
@@ -119,6 +121,7 @@ python -m pytest tests/ -v          # Run tests
 
 ## Recent Changes
 
+- Assignments deleted in Schoology are pruned on save and logged in `grade_history` as `Removed`
 - Grade marks 4 (Collected) and 6 (Late) are stored instead of dropped; they keep the score
 - `--backfill-history` copies pre-`grade_history` assignment changes from the change log
 - Read-only Datasette service (`datasette/`) with canned queries, bound to `DATASETTE_BIND`
